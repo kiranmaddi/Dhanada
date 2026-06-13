@@ -1,43 +1,12 @@
-# Learn more https://docs.github.com/en/get-started/getting-started-with-git/ignoring-files
-
-# dependencies
+# Root monorepo ignores
 node_modules/
-
-# Expo
 .expo/
-dist/
-web-build/
-expo-env.d.ts
+*.log
+npm-debug.log*
 
-# Native
-.kotlin/
-*.orig.*
-*.jks
-*.p8
-*.p12
-*.key
-*.mobileprovision
-
-# Metro
-.metro-health-check*
-
-# debug
-npm-debug.*
-yarn-debug.*
-yarn-error.*
-
-# macOS
-.DS_Store
-*.pem
-
-# local env files
-.env*.local
-
-# typescript
-*.tsbuildinfo
-
-example
-
-# generated native folders
-/ios
-/android
+# Mobile project inner ignores are in mobile/.gitignore
+# Web project
+web/node_modules/
+web/.next/
+web/.env.local
+web/.env*.local
