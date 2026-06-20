@@ -27,6 +27,7 @@ import DateTimePicker, {
 } from "@react-native-community/datetimepicker";
 import { SafeAreaView } from "react-native-safe-area-context";
 
+import { CollapsibleSection } from "@/components/ui/collapsible-section";
 import { supabase } from "@/lib/supabase";
 
 type AppEvent = {
@@ -268,197 +269,199 @@ export default function EventsScreen() {
 
         {/* ── Create/Edit Event Form ── */}
         <View style={styles.card}>
-          <Text style={styles.cardTitle}>
-            {editingId ? "Edit Event" : "New Event"}
-          </Text>
+          <CollapsibleSection title={editingId ? "Edit Event" : "New Event"}>
+            <TextInput
+              style={styles.input}
+              value={eventName}
+              onChangeText={setEventName}
+              placeholder="Event name *"
+              placeholderTextColor="#6b7280"
+            />
+            <TextInput
+              style={styles.input}
+              value={venue}
+              onChangeText={setVenue}
+              placeholder="Venue"
+              placeholderTextColor="#6b7280"
+            />
+            <TextInput
+              style={[styles.input, styles.multiline]}
+              value={description}
+              onChangeText={setDescription}
+              placeholder="Description"
+              placeholderTextColor="#6b7280"
+              multiline
+              numberOfLines={3}
+            />
+            <TextInput
+              style={[styles.input, styles.multiline]}
+              value={invitationText}
+              onChangeText={setInvitationText}
+              placeholder="Invitation text"
+              placeholderTextColor="#6b7280"
+              multiline
+              numberOfLines={3}
+            />
 
-          <TextInput
-            style={styles.input}
-            value={eventName}
-            onChangeText={setEventName}
-            placeholder="Event name *"
-            placeholderTextColor="#6b7280"
-          />
-          <TextInput
-            style={styles.input}
-            value={venue}
-            onChangeText={setVenue}
-            placeholder="Venue"
-            placeholderTextColor="#6b7280"
-          />
-          <TextInput
-            style={[styles.input, styles.multiline]}
-            value={description}
-            onChangeText={setDescription}
-            placeholder="Description"
-            placeholderTextColor="#6b7280"
-            multiline
-            numberOfLines={3}
-          />
-          <TextInput
-            style={[styles.input, styles.multiline]}
-            value={invitationText}
-            onChangeText={setInvitationText}
-            placeholder="Invitation text"
-            placeholderTextColor="#6b7280"
-            multiline
-            numberOfLines={3}
-          />
-
-          {/* Date picker */}
-          <Text style={styles.label}>Date</Text>
-          <Pressable
-            style={styles.dateButton}
-            onPress={() => setShowDatePicker(true)}
-          >
-            <Text style={styles.dateText}>{date.toLocaleDateString()}</Text>
-            <Text style={styles.dateHint}>Tap to change</Text>
-          </Pressable>
-          {showDatePicker && (
-            <View>
-              <DateTimePicker
-                value={date}
-                mode="date"
-                display={Platform.OS === "ios" ? "spinner" : "default"}
-                onChange={onDateChange}
-              />
-              {Platform.OS === "ios" && (
-                <Pressable
-                  style={styles.doneButton}
-                  onPress={() => setShowDatePicker(false)}
-                >
-                  <Text style={styles.doneText}>Done</Text>
-                </Pressable>
-              )}
-            </View>
-          )}
-
-          {/* Once / Repetitive toggle */}
-          <Text style={styles.label}>Frequency</Text>
-          <View style={styles.toggleRow}>
+            <Text style={styles.label}>Date</Text>
             <Pressable
-              style={[
-                styles.toggleOption,
-                !isRepetitive && styles.toggleActive,
-              ]}
-              onPress={() => setIsRepetitive(false)}
+              style={styles.dateButton}
+              onPress={() => setShowDatePicker(true)}
             >
-              <Text
-                style={[
-                  styles.toggleText,
-                  !isRepetitive && styles.toggleTextActive,
-                ]}
-              >
-                Once
-              </Text>
+              <Text style={styles.dateText}>{date.toLocaleDateString()}</Text>
+              <Text style={styles.dateHint}>Tap to change</Text>
             </Pressable>
-            <Pressable
-              style={[styles.toggleOption, isRepetitive && styles.toggleActive]}
-              onPress={() => setIsRepetitive(true)}
-            >
-              <Text
-                style={[
-                  styles.toggleText,
-                  isRepetitive && styles.toggleTextActive,
-                ]}
-              >
-                Repetitive
-              </Text>
-            </Pressable>
-          </View>
+            {showDatePicker && (
+              <View>
+                <DateTimePicker
+                  value={date}
+                  mode="date"
+                  display={Platform.OS === "ios" ? "spinner" : "default"}
+                  onChange={onDateChange}
+                />
+                {Platform.OS === "ios" && (
+                  <Pressable
+                    style={styles.doneButton}
+                    onPress={() => setShowDatePicker(false)}
+                  >
+                    <Text style={styles.doneText}>Done</Text>
+                  </Pressable>
+                )}
+              </View>
+            )}
 
-          <Pressable
-            style={[
-              styles.primaryButton,
-              (creating || updating) && styles.buttonDisabled,
-            ]}
-            disabled={creating || updating}
-            onPress={onCreate}
-          >
-            <Text style={styles.primaryButtonText}>
-              {editingId
-                ? updating
-                  ? "Updating..."
-                  : "Update Event"
-                : creating
-                  ? "Creating..."
-                  : "Create Event"}
-            </Text>
-          </Pressable>
-
-          {editingId && (
-            <>
+            <Text style={styles.label}>Frequency</Text>
+            <View style={styles.toggleRow}>
               <Pressable
-                style={[styles.removeButton, deleting && styles.buttonDisabled]}
-                disabled={deleting}
-                onPress={onDelete}
+                style={[
+                  styles.toggleOption,
+                  !isRepetitive && styles.toggleActive,
+                ]}
+                onPress={() => setIsRepetitive(false)}
               >
-                <Text style={styles.removeButtonText}>
-                  {deleting ? "Deleting..." : "Delete Event"}
+                <Text
+                  style={[
+                    styles.toggleText,
+                    !isRepetitive && styles.toggleTextActive,
+                  ]}
+                >
+                  Once
                 </Text>
               </Pressable>
-
-              <Pressable style={styles.secondaryButton} onPress={cancelEdit}>
-                <Text style={styles.secondaryButtonText}>Cancel</Text>
+              <Pressable
+                style={[
+                  styles.toggleOption,
+                  isRepetitive && styles.toggleActive,
+                ]}
+                onPress={() => setIsRepetitive(true)}
+              >
+                <Text
+                  style={[
+                    styles.toggleText,
+                    isRepetitive && styles.toggleTextActive,
+                  ]}
+                >
+                  Repetitive
+                </Text>
               </Pressable>
-            </>
-          )}
+            </View>
+
+            <Pressable
+              style={[
+                styles.primaryButton,
+                (creating || updating) && styles.buttonDisabled,
+              ]}
+              disabled={creating || updating}
+              onPress={onCreate}
+            >
+              <Text style={styles.primaryButtonText}>
+                {editingId
+                  ? updating
+                    ? "Updating..."
+                    : "Update Event"
+                  : creating
+                    ? "Creating..."
+                    : "Create Event"}
+              </Text>
+            </Pressable>
+
+            {editingId && (
+              <>
+                <Pressable
+                  style={[
+                    styles.removeButton,
+                    deleting && styles.buttonDisabled,
+                  ]}
+                  disabled={deleting}
+                  onPress={onDelete}
+                >
+                  <Text style={styles.removeButtonText}>
+                    {deleting ? "Deleting..." : "Delete Event"}
+                  </Text>
+                </Pressable>
+
+                <Pressable style={styles.secondaryButton} onPress={cancelEdit}>
+                  <Text style={styles.secondaryButtonText}>Cancel</Text>
+                </Pressable>
+              </>
+            )}
+          </CollapsibleSection>
         </View>
 
         {/* ── Events List ── */}
         <View style={styles.card}>
-          <Text style={styles.cardTitle}>Events ({events.length})</Text>
+          <CollapsibleSection title={`Events (${events.length})`}>
+            {events.length === 0 && (
+              <Text style={styles.emptyText}>No events yet.</Text>
+            )}
 
-          {events.length === 0 && (
-            <Text style={styles.emptyText}>No events yet.</Text>
-          )}
+            {events.map((event) => (
+              <View key={event.id} style={styles.eventItem}>
+                <Pressable
+                  style={styles.eventHeader}
+                  onPress={() =>
+                    setExpandedId(expandedId === event.id ? null : event.id)
+                  }
+                >
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.eventName}>{event.event_name}</Text>
+                    <View style={styles.badgeRow}>
+                      <Text style={styles.dateBadge}>
+                        {toDisplayDate(event.event_date)}
+                      </Text>
+                      {event.is_repetitive && (
+                        <Text style={styles.repBadge}>Recurring</Text>
+                      )}
+                    </View>
+                  </View>
+                  <Pressable
+                    style={styles.editButton}
+                    onPress={() => startEdit(event)}
+                  >
+                    <Text style={styles.editButtonText}>Edit</Text>
+                  </Pressable>
+                </Pressable>
 
-          {events.map((event) => (
-            <View key={event.id} style={styles.eventItem}>
-              <Pressable
-                style={styles.eventHeader}
-                onPress={() =>
-                  setExpandedId(expandedId === event.id ? null : event.id)
-                }
-              >
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.eventName}>{event.event_name}</Text>
-                  <View style={styles.badgeRow}>
-                    <Text style={styles.dateBadge}>
-                      {toDisplayDate(event.event_date)}
-                    </Text>
-                    {event.is_repetitive && (
-                      <Text style={styles.repBadge}>Recurring</Text>
+                {expandedId === event.id && (
+                  <View style={styles.eventDetail}>
+                    {Boolean(event.venue) && (
+                      <Text style={styles.detailText}>📍 {event.venue}</Text>
+                    )}
+                    {Boolean(event.description) && (
+                      <Text style={styles.detailText}>
+                        📝 {event.description}
+                      </Text>
+                    )}
+                    {Boolean(event.invitation_text) && (
+                      <Text style={styles.detailText}>
+                        ✉️ {event.invitation_text}
+                      </Text>
                     )}
                   </View>
-                </View>
-                <Pressable
-                  style={styles.editButton}
-                  onPress={() => startEdit(event)}
-                >
-                  <Text style={styles.editButtonText}>Edit</Text>
-                </Pressable>
-              </Pressable>
-
-              {expandedId === event.id && (
-                <View style={styles.eventDetail}>
-                  {Boolean(event.venue) && (
-                    <Text style={styles.detailText}>📍 {event.venue}</Text>
-                  )}
-                  {Boolean(event.description) && (
-                    <Text style={styles.detailText}>
-                      📝 {event.description}
-                    </Text>
-                  )}
-                  {Boolean(event.invitation_text) && (
-                    <Text style={styles.detailText}>
-                      ✉️ {event.invitation_text}
-                    </Text>
-                  )}
-                </View>
-              )}
-            </View>
-          ))}
+                )}
+              </View>
+            ))}
+          </CollapsibleSection>
         </View>
       </ScrollView>
     </SafeAreaView>

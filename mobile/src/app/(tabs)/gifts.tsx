@@ -12,6 +12,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
+import { CollapsibleSection } from "@/components/ui/collapsible-section";
 import { supabase } from "@/lib/supabase";
 
 type AppEvent = { id: string; event_name: string; event_date: string };
@@ -457,265 +458,273 @@ export default function GiftsScreen() {
 
         {/* ── Event selector ── */}
         <View style={styles.card}>
-          <Text style={styles.cardTitle}>Select Event</Text>
-          {events.length === 0 ? (
-            <Text style={styles.emptyText}>
-              No events yet — create one in the Events tab.
-            </Text>
-          ) : (
-            <FlatList
-              data={events}
-              keyExtractor={(item) => item.id}
-              scrollEnabled={false}
-              renderItem={({ item }) => {
-                const active = item.id === selectedEventId;
-                return (
-                  <Pressable
-                    style={[styles.eventChip, active && styles.eventChipActive]}
-                    onPress={() => setSelectedEventId(item.id)}
-                  >
-                    <Text
+          <CollapsibleSection title="Select Event">
+            {events.length === 0 ? (
+              <Text style={styles.emptyText}>
+                No events yet — create one in the Events tab.
+              </Text>
+            ) : (
+              <FlatList
+                data={events}
+                keyExtractor={(item) => item.id}
+                scrollEnabled={false}
+                renderItem={({ item }) => {
+                  const active = item.id === selectedEventId;
+                  return (
+                    <Pressable
                       style={[
-                        styles.eventChipText,
-                        active && styles.eventChipTextActive,
+                        styles.eventChip,
+                        active && styles.eventChipActive,
                       ]}
+                      onPress={() => setSelectedEventId(item.id)}
                     >
-                      {item.event_name}
-                    </Text>
-                    <Text
-                      style={[
-                        styles.eventChipDate,
-                        active && styles.eventChipTextActive,
-                      ]}
-                    >
-                      {toDisplayDate(item.event_date)}
-                    </Text>
-                  </Pressable>
-                );
-              }}
-            />
-          )}
+                      <Text
+                        style={[
+                          styles.eventChipText,
+                          active && styles.eventChipTextActive,
+                        ]}
+                      >
+                        {item.event_name}
+                      </Text>
+                      <Text
+                        style={[
+                          styles.eventChipDate,
+                          active && styles.eventChipTextActive,
+                        ]}
+                      >
+                        {toDisplayDate(item.event_date)}
+                      </Text>
+                    </Pressable>
+                  );
+                }}
+              />
+            )}
+          </CollapsibleSection>
         </View>
 
         {/* ── Add Gift Form ── */}
         {selectedEvent && (
           <View style={styles.card}>
-            <Text style={styles.cardTitle}>
-              Add Gift — {selectedEvent.event_name}
-            </Text>
-
-            {contacts.length === 0 ? (
-              <Text style={styles.emptyText}>
-                No contacts found. Add contacts first.
-              </Text>
-            ) : (
-              <>
-                <Text style={styles.label}>
-                  Search Contact by Name or Phone
+            <CollapsibleSection
+              title={`Add Gift — ${selectedEvent.event_name}`}
+            >
+              {contacts.length === 0 ? (
+                <Text style={styles.emptyText}>
+                  No contacts found. Add contacts first.
                 </Text>
-                <TextInput
-                  style={styles.input}
-                  placeholder="Type name or phone number..."
-                  value={searchQuery}
-                  onChangeText={(text) => {
-                    setSearchQuery(text);
-                    setShowSearchDropdown(true);
-                  }}
-                  onFocus={() => setShowSearchDropdown(true)}
-                  placeholderTextColor="#6b7280"
-                />
+              ) : (
+                <>
+                  <Text style={styles.label}>
+                    Search Contact by Name or Phone
+                  </Text>
+                  <TextInput
+                    style={styles.input}
+                    placeholder="Type name or phone number..."
+                    value={searchQuery}
+                    onChangeText={(text) => {
+                      setSearchQuery(text);
+                      setShowSearchDropdown(true);
+                    }}
+                    onFocus={() => setShowSearchDropdown(true)}
+                    placeholderTextColor="#6b7280"
+                  />
 
-                {showSearchDropdown && searchQuery.trim() && (
-                  <View style={styles.dropdown}>
-                    {filteredInvitees.length > 0 ? (
-                      filteredInvitees.map((inv) => (
-                        <Pressable
-                          key={inv.id}
-                          style={styles.dropdownItem}
-                          onPress={() => {
-                            setSelectedContactId(inv.id);
-                            setSearchQuery("");
-                            setShowSearchDropdown(false);
-                          }}
-                        >
-                          <Text style={styles.dropdownItemName}>
-                            {inv.name}
-                          </Text>
-                          {inv.phone && (
-                            <Text style={styles.dropdownItemPhone}>
-                              {inv.phone}
+                  {showSearchDropdown && searchQuery.trim() && (
+                    <View style={styles.dropdown}>
+                      {filteredInvitees.length > 0 ? (
+                        filteredInvitees.map((inv) => (
+                          <Pressable
+                            key={inv.id}
+                            style={styles.dropdownItem}
+                            onPress={() => {
+                              setSelectedContactId(inv.id);
+                              setSearchQuery("");
+                              setShowSearchDropdown(false);
+                            }}
+                          >
+                            <Text style={styles.dropdownItemName}>
+                              {inv.name}
                             </Text>
-                          )}
-                        </Pressable>
-                      ))
-                    ) : (
-                      <View style={styles.noMatch}>
-                        <Text style={styles.noMatchText}>No contact found</Text>
-                        <TextInput
-                          style={[styles.input, styles.mt8]}
-                          placeholder="New contact name *"
-                          value={newContactName}
-                          onChangeText={setNewContactName}
-                          placeholderTextColor="#6b7280"
-                        />
-                        <TextInput
-                          style={[styles.input, styles.mt8]}
-                          placeholder="Phone (optional - 10 digits)"
-                          value={newContactPhone}
-                          onChangeText={(text) => {
-                            const digits = text.replace(/\D/g, "").slice(0, 10);
-                            setNewContactPhone(digits);
-                          }}
-                          placeholderTextColor="#6b7280"
-                          keyboardType="phone-pad"
-                          maxLength={10}
-                        />
-                        <Pressable
-                          style={[
-                            styles.addBtn,
-                            addingNewContact && styles.disabled,
-                          ]}
-                          onPress={onAddNewContact}
-                          disabled={addingNewContact}
-                        >
-                          <Text style={styles.addBtnText}>
-                            {addingNewContact ? "Adding..." : "Add & Invite"}
+                            {inv.phone && (
+                              <Text style={styles.dropdownItemPhone}>
+                                {inv.phone}
+                              </Text>
+                            )}
+                          </Pressable>
+                        ))
+                      ) : (
+                        <View style={styles.noMatch}>
+                          <Text style={styles.noMatchText}>
+                            No contact found
                           </Text>
-                        </Pressable>
-                      </View>
-                    )}
+                          <TextInput
+                            style={[styles.input, styles.mt8]}
+                            placeholder="New contact name *"
+                            value={newContactName}
+                            onChangeText={setNewContactName}
+                            placeholderTextColor="#6b7280"
+                          />
+                          <TextInput
+                            style={[styles.input, styles.mt8]}
+                            placeholder="Phone (optional - 10 digits)"
+                            value={newContactPhone}
+                            onChangeText={(text) => {
+                              const digits = text
+                                .replace(/\D/g, "")
+                                .slice(0, 10);
+                              setNewContactPhone(digits);
+                            }}
+                            placeholderTextColor="#6b7280"
+                            keyboardType="phone-pad"
+                            maxLength={10}
+                          />
+                          <Pressable
+                            style={[
+                              styles.addBtn,
+                              addingNewContact && styles.disabled,
+                            ]}
+                            onPress={onAddNewContact}
+                            disabled={addingNewContact}
+                          >
+                            <Text style={styles.addBtnText}>
+                              {addingNewContact ? "Adding..." : "Add & Invite"}
+                            </Text>
+                          </Pressable>
+                        </View>
+                      )}
+                    </View>
+                  )}
+
+                  {selectedContact && (
+                    <Text style={styles.helper}>
+                      Selected:{" "}
+                      <Text style={{ fontWeight: "600" }}>
+                        {selectedContact.name}
+                      </Text>
+                      {selectedContact.phone && ` • ${selectedContact.phone}`}
+                    </Text>
+                  )}
+
+                  <Text style={styles.label}>Gift Type</Text>
+                  <View style={styles.toggleRow}>
+                    <Pressable
+                      style={[
+                        styles.toggleOption,
+                        giftType === "cash" && styles.toggleOptionActive,
+                      ]}
+                      onPress={() => setGiftType("cash")}
+                    >
+                      <Text
+                        style={[
+                          styles.toggleOptionText,
+                          giftType === "cash" && styles.toggleOptionTextActive,
+                        ]}
+                      >
+                        Cash
+                      </Text>
+                    </Pressable>
+                    <Pressable
+                      style={[
+                        styles.toggleOption,
+                        giftType === "gift" && styles.toggleOptionActive,
+                      ]}
+                      onPress={() => setGiftType("gift")}
+                    >
+                      <Text
+                        style={[
+                          styles.toggleOptionText,
+                          giftType === "gift" && styles.toggleOptionTextActive,
+                        ]}
+                      >
+                        Gift Article
+                      </Text>
+                    </Pressable>
                   </View>
-                )}
 
-                {selectedContact && (
-                  <Text style={styles.helper}>
-                    Selected:{" "}
-                    <Text style={{ fontWeight: "600" }}>
-                      {selectedContact.name}
-                    </Text>
-                    {selectedContact.phone && ` • ${selectedContact.phone}`}
-                  </Text>
-                )}
+                  {giftType === "gift" ? (
+                    <TextInput
+                      style={styles.input}
+                      value={giftNameInput}
+                      onChangeText={setGiftNameInput}
+                      placeholder="Gift name *"
+                      placeholderTextColor="#6b7280"
+                    />
+                  ) : (
+                    <TextInput
+                      style={styles.input}
+                      value={giftAmountInput}
+                      onChangeText={setGiftAmountInput}
+                      placeholder="Amount *"
+                      placeholderTextColor="#6b7280"
+                      keyboardType="decimal-pad"
+                    />
+                  )}
+                  <TextInput
+                    style={[styles.input, styles.multiline]}
+                    value={giftNotesInput}
+                    onChangeText={setGiftNotesInput}
+                    placeholder="Notes (optional)"
+                    placeholderTextColor="#6b7280"
+                    multiline
+                    numberOfLines={3}
+                  />
 
-                <Text style={styles.label}>Gift Type</Text>
-                <View style={styles.toggleRow}>
                   <Pressable
                     style={[
-                      styles.toggleOption,
-                      giftType === "cash" && styles.toggleOptionActive,
+                      styles.primaryButton,
+                      creating && styles.buttonDisabled,
                     ]}
-                    onPress={() => setGiftType("cash")}
+                    disabled={creating}
+                    onPress={onCreateGift}
                   >
-                    <Text
-                      style={[
-                        styles.toggleOptionText,
-                        giftType === "cash" && styles.toggleOptionTextActive,
-                      ]}
-                    >
-                      Cash
+                    <Text style={styles.primaryButtonText}>
+                      {creating ? "Adding..." : "Add Gift"}
                     </Text>
                   </Pressable>
-                  <Pressable
-                    style={[
-                      styles.toggleOption,
-                      giftType === "gift" && styles.toggleOptionActive,
-                    ]}
-                    onPress={() => setGiftType("gift")}
-                  >
-                    <Text
-                      style={[
-                        styles.toggleOptionText,
-                        giftType === "gift" && styles.toggleOptionTextActive,
-                      ]}
-                    >
-                      Gift Article
-                    </Text>
-                  </Pressable>
-                </View>
-
-                {giftType === "gift" ? (
-                  <TextInput
-                    style={styles.input}
-                    value={giftNameInput}
-                    onChangeText={setGiftNameInput}
-                    placeholder="Gift name *"
-                    placeholderTextColor="#6b7280"
-                  />
-                ) : (
-                  <TextInput
-                    style={styles.input}
-                    value={giftAmountInput}
-                    onChangeText={setGiftAmountInput}
-                    placeholder="Amount *"
-                    placeholderTextColor="#6b7280"
-                    keyboardType="decimal-pad"
-                  />
-                )}
-                <TextInput
-                  style={[styles.input, styles.multiline]}
-                  value={giftNotesInput}
-                  onChangeText={setGiftNotesInput}
-                  placeholder="Notes (optional)"
-                  placeholderTextColor="#6b7280"
-                  multiline
-                  numberOfLines={3}
-                />
-
-                <Pressable
-                  style={[
-                    styles.primaryButton,
-                    creating && styles.buttonDisabled,
-                  ]}
-                  disabled={creating}
-                  onPress={onCreateGift}
-                >
-                  <Text style={styles.primaryButtonText}>
-                    {creating ? "Adding..." : "Add Gift"}
-                  </Text>
-                </Pressable>
-              </>
-            )}
+                </>
+              )}
+            </CollapsibleSection>
           </View>
         )}
 
         {/* ── Gifts list ── */}
         {selectedEvent && (
           <View style={styles.card}>
-            <Text style={styles.cardTitle}>
-              Gifts ({gifts.length}) — {selectedEvent.event_name}
-            </Text>
-            {gifts.length === 0 ? (
-              <Text style={styles.emptyText}>No gifts recorded yet.</Text>
-            ) : (
-              <FlatList
-                data={gifts}
-                keyExtractor={(item) => item.id}
-                scrollEnabled={false}
-                renderItem={({ item }) => {
-                  const contact = contactForGift(item);
-                  const amount = giftAmount(item);
-                  const notes = giftNotes(item);
-                  return (
-                    <View style={styles.giftRow}>
-                      <View style={{ flex: 1 }}>
-                        <Text style={styles.giftName}>{giftName(item)}</Text>
-                        {Boolean(contact) && (
-                          <Text style={styles.giftMeta}>
-                            From: {contact!.name}
-                          </Text>
-                        )}
-                        {Boolean(amount) && (
-                          <Text style={styles.giftAmount}>{amount}</Text>
-                        )}
-                        {Boolean(notes) && (
-                          <Text style={styles.giftNotes}>{notes}</Text>
-                        )}
+            <CollapsibleSection
+              title={`Gifts (${gifts.length}) — ${selectedEvent.event_name}`}
+            >
+              {gifts.length === 0 ? (
+                <Text style={styles.emptyText}>No gifts recorded yet.</Text>
+              ) : (
+                <FlatList
+                  data={gifts}
+                  keyExtractor={(item) => item.id}
+                  scrollEnabled={false}
+                  renderItem={({ item }) => {
+                    const contact = contactForGift(item);
+                    const amount = giftAmount(item);
+                    const notes = giftNotes(item);
+                    return (
+                      <View style={styles.giftRow}>
+                        <View style={{ flex: 1 }}>
+                          {Boolean(contact) && (
+                            <Text style={styles.giftName}>{contact!.name}</Text>
+                          )}
+                          <Text style={styles.giftMeta}>{giftName(item)}</Text>
+
+                          {Boolean(amount) && (
+                            <Text style={styles.giftAmount}>{amount}</Text>
+                          )}
+                          {Boolean(notes) && (
+                            <Text style={styles.giftNotes}>{notes}</Text>
+                          )}
+                        </View>
                       </View>
-                    </View>
-                  );
-                }}
-              />
-            )}
+                    );
+                  }}
+                />
+              )}
+            </CollapsibleSection>
           </View>
         )}
       </ScrollView>

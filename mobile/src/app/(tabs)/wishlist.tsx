@@ -51,6 +51,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Image } from "expo-image";
 import * as ImagePicker from "expo-image-picker";
 
+import { CollapsibleSection } from "@/components/ui/collapsible-section";
 import { supabase } from "@/lib/supabase";
 
 type Wishlist = {
@@ -479,200 +480,219 @@ export default function WishListScreen() {
         <Text style={styles.logo}>Dhanada</Text>
 
         <View style={styles.card}>
-          <Text style={styles.cardTitle}>Create Wish List</Text>
-          <TextInput
-            style={styles.input}
-            value={wishlistName}
-            onChangeText={setWishlistName}
-            placeholder="Wishlist name"
-            placeholderTextColor="#6b7280"
-          />
-          <Pressable
-            style={[
-              styles.primaryButton,
-              creatingList && styles.buttonDisabled,
-            ]}
-            disabled={creatingList}
-            onPress={onCreateWishlist}
-          >
-            <Text style={styles.primaryButtonText}>
-              {creatingList ? "Creating..." : "Create Wishlist"}
-            </Text>
-          </Pressable>
+          <CollapsibleSection title="Create Wish List">
+            <TextInput
+              style={styles.input}
+              value={wishlistName}
+              onChangeText={setWishlistName}
+              placeholder="Wishlist name"
+              placeholderTextColor="#6b7280"
+            />
+            <Pressable
+              style={[
+                styles.primaryButton,
+                creatingList && styles.buttonDisabled,
+              ]}
+              disabled={creatingList}
+              onPress={onCreateWishlist}
+            >
+              <Text style={styles.primaryButtonText}>
+                {creatingList ? "Creating..." : "Create Wishlist"}
+              </Text>
+            </Pressable>
+          </CollapsibleSection>
         </View>
 
         <View style={styles.card}>
-          <Text style={styles.cardTitle}>Wish Lists ({wishlists.length})</Text>
-          {wishlists.length === 0 ? (
-            <Text style={styles.emptyText}>No wishlists yet.</Text>
-          ) : (
-            <FlatList
-              data={wishlists}
-              keyExtractor={(item) => item.id}
-              scrollEnabled={false}
-              renderItem={({ item }) => {
-                const selected = item.id === selectedWishlistId;
-                return (
-                  <Pressable
-                    style={[styles.listRow, selected && styles.listRowSelected]}
-                    onPress={() => setSelectedWishlistId(item.id)}
-                  >
-                    <View style={{ flex: 1 }}>
-                      <Text style={styles.listName}>{item.name}</Text>
-                      <Text style={styles.listMeta}>
-                        {item.is_active ? "Active" : "Inactive"}
-                      </Text>
-                    </View>
+          <CollapsibleSection title={`Wish Lists (${wishlists.length})`}>
+            {wishlists.length === 0 ? (
+              <Text style={styles.emptyText}>No wishlists yet.</Text>
+            ) : (
+              <FlatList
+                data={wishlists}
+                keyExtractor={(item) => item.id}
+                scrollEnabled={false}
+                renderItem={({ item }) => {
+                  const selected = item.id === selectedWishlistId;
+                  return (
                     <Pressable
-                      style={styles.pillButton}
-                      onPress={() => onToggleWishlistActive(item)}
+                      style={[
+                        styles.listRow,
+                        selected && styles.listRowSelected,
+                      ]}
+                      onPress={() => setSelectedWishlistId(item.id)}
                     >
-                      <Text style={styles.pillButtonText}>
-                        Make {item.is_active ? "Inactive" : "Active"}
-                      </Text>
-                    </Pressable>
-                  </Pressable>
-                );
-              }}
-            />
-          )}
-        </View>
-
-        {selectedWishlist ? (
-          <>
-            <View style={styles.card}>
-              <Text style={styles.cardTitle}>
-                Add Item to {selectedWishlist.name}
-              </Text>
-              <TextInput
-                style={styles.input}
-                value={itemName}
-                onChangeText={setItemName}
-                placeholder="Item name"
-                placeholderTextColor="#6b7280"
-              />
-
-              <View style={styles.rowButtons}>
-                <Pressable style={styles.secondaryButton} onPress={onPickImage}>
-                  <Text style={styles.secondaryButtonText}>Pick Image</Text>
-                </Pressable>
-                <Pressable style={styles.secondaryButton} onPress={onTakePhoto}>
-                  <Text style={styles.secondaryButtonText}>Take Photo</Text>
-                </Pressable>
-              </View>
-
-              {selectedImage && (
-                <Image
-                  source={{ uri: selectedImage.uri }}
-                  style={styles.previewImage}
-                  contentFit="cover"
-                />
-              )}
-
-              <Pressable
-                style={[
-                  styles.primaryButton,
-                  creatingItem && styles.buttonDisabled,
-                ]}
-                disabled={creatingItem}
-                onPress={onCreateItem}
-              >
-                <Text style={styles.primaryButtonText}>
-                  {creatingItem ? "Saving..." : "Add Item"}
-                </Text>
-              </Pressable>
-            </View>
-
-            <View style={styles.card}>
-              <Text style={styles.cardTitle}>Items ({items.length})</Text>
-              {items.length === 0 ? (
-                <Text style={styles.emptyText}>No items yet.</Text>
-              ) : (
-                <FlatList
-                  data={items}
-                  keyExtractor={(item) => item.id}
-                  scrollEnabled={false}
-                  renderItem={({ item }) => (
-                    <View style={styles.itemRow}>
-                      {item.image_url ? (
-                        <Image
-                          source={{ uri: item.image_url }}
-                          style={styles.thumb}
-                          contentFit="cover"
-                        />
-                      ) : (
-                        <View style={[styles.thumb, styles.thumbEmpty]}>
-                          <Text style={styles.thumbEmptyText}>No Image</Text>
-                        </View>
-                      )}
                       <View style={{ flex: 1 }}>
-                        <Text style={styles.listName}>{item.item_name}</Text>
+                        <Text style={styles.listName}>{item.name}</Text>
                         <Text style={styles.listMeta}>
                           {item.is_active ? "Active" : "Inactive"}
                         </Text>
                       </View>
                       <Pressable
                         style={styles.pillButton}
-                        onPress={() => onToggleItemActive(item)}
+                        onPress={() => onToggleWishlistActive(item)}
                       >
                         <Text style={styles.pillButtonText}>
                           Make {item.is_active ? "Inactive" : "Active"}
                         </Text>
                       </Pressable>
-                    </View>
-                  )}
+                    </Pressable>
+                  );
+                }}
+              />
+            )}
+          </CollapsibleSection>
+        </View>
+
+        {selectedWishlist ? (
+          <>
+            <View style={styles.card}>
+              <CollapsibleSection
+                title={`Add Item to ${selectedWishlist.name}`}
+              >
+                <TextInput
+                  style={styles.input}
+                  value={itemName}
+                  onChangeText={setItemName}
+                  placeholder="Item name"
+                  placeholderTextColor="#6b7280"
                 />
-              )}
+
+                <View style={styles.rowButtons}>
+                  <Pressable
+                    style={styles.secondaryButton}
+                    onPress={onPickImage}
+                  >
+                    <Text style={styles.secondaryButtonText}>Pick Image</Text>
+                  </Pressable>
+                  <Pressable
+                    style={styles.secondaryButton}
+                    onPress={onTakePhoto}
+                  >
+                    <Text style={styles.secondaryButtonText}>Take Photo</Text>
+                  </Pressable>
+                </View>
+
+                {selectedImage && (
+                  <Image
+                    source={{ uri: selectedImage.uri }}
+                    style={styles.previewImage}
+                    contentFit="cover"
+                  />
+                )}
+
+                <Pressable
+                  style={[
+                    styles.primaryButton,
+                    creatingItem && styles.buttonDisabled,
+                  ]}
+                  disabled={creatingItem}
+                  onPress={onCreateItem}
+                >
+                  <Text style={styles.primaryButtonText}>
+                    {creatingItem ? "Saving..." : "Add Item"}
+                  </Text>
+                </Pressable>
+              </CollapsibleSection>
             </View>
 
             <View style={styles.card}>
-              <Text style={styles.cardTitle}>Share with Event Invitees</Text>
-              <Text style={styles.helperText}>
-                Provision only for now. Active wishlists/items should be shared.
-              </Text>
-
-              {events.length === 0 ? (
-                <Text style={styles.emptyText}>No events found.</Text>
-              ) : (
-                <FlatList
-                  data={events}
-                  keyExtractor={(item) => item.id}
-                  scrollEnabled={false}
-                  renderItem={({ item }) => {
-                    const linked =
-                      links.find(
-                        (l) =>
-                          l.event_id === item.id &&
-                          l.wishlist_id === selectedWishlist.id &&
-                          l.is_active,
-                      ) != null;
-
-                    return (
-                      <View style={styles.listRow}>
+              <CollapsibleSection title={`Items (${items.length})`}>
+                {items.length === 0 ? (
+                  <Text style={styles.emptyText}>No items yet.</Text>
+                ) : (
+                  <FlatList
+                    data={items}
+                    keyExtractor={(item) => item.id}
+                    scrollEnabled={false}
+                    renderItem={({ item }) => (
+                      <View style={styles.itemRow}>
+                        {item.image_url ? (
+                          <Image
+                            source={{ uri: item.image_url }}
+                            style={styles.thumb}
+                            contentFit="cover"
+                          />
+                        ) : (
+                          <View style={[styles.thumb, styles.thumbEmpty]}>
+                            <Text style={styles.thumbEmptyText}>No Image</Text>
+                          </View>
+                        )}
                         <View style={{ flex: 1 }}>
-                          <Text style={styles.listName}>{item.event_name}</Text>
+                          <Text style={styles.listName}>{item.item_name}</Text>
                           <Text style={styles.listMeta}>
-                            {formatDate(item.event_date)}
+                            {item.is_active ? "Active" : "Inactive"}
                           </Text>
                         </View>
                         <Pressable
                           style={styles.pillButton}
-                          onPress={() => onToggleEventShare(item.id)}
+                          onPress={() => onToggleItemActive(item)}
                         >
                           <Text style={styles.pillButtonText}>
-                            {linked ? "Shared" : "Share"}
+                            Make {item.is_active ? "Inactive" : "Active"}
                           </Text>
                         </Pressable>
                       </View>
-                    );
-                  }}
-                />
-              )}
+                    )}
+                  />
+                )}
+              </CollapsibleSection>
+            </View>
+
+            <View style={styles.card}>
+              <CollapsibleSection title="Share with Event Invitees">
+                <Text style={styles.helperText}>
+                  Provision only for now. Active wishlists/items should be
+                  shared.
+                </Text>
+
+                {events.length === 0 ? (
+                  <Text style={styles.emptyText}>No events found.</Text>
+                ) : (
+                  <FlatList
+                    data={events}
+                    keyExtractor={(item) => item.id}
+                    scrollEnabled={false}
+                    renderItem={({ item }) => {
+                      const linked =
+                        links.find(
+                          (l) =>
+                            l.event_id === item.id &&
+                            l.wishlist_id === selectedWishlist.id &&
+                            l.is_active,
+                        ) != null;
+
+                      return (
+                        <View style={styles.listRow}>
+                          <View style={{ flex: 1 }}>
+                            <Text style={styles.listName}>
+                              {item.event_name}
+                            </Text>
+                            <Text style={styles.listMeta}>
+                              {formatDate(item.event_date)}
+                            </Text>
+                          </View>
+                          <Pressable
+                            style={styles.pillButton}
+                            onPress={() => onToggleEventShare(item.id)}
+                          >
+                            <Text style={styles.pillButtonText}>
+                              {linked ? "Shared" : "Share"}
+                            </Text>
+                          </Pressable>
+                        </View>
+                      );
+                    }}
+                  />
+                )}
+              </CollapsibleSection>
             </View>
           </>
         ) : (
           <View style={styles.card}>
-            <Text style={styles.emptyText}>Select or create a wishlist.</Text>
+            <CollapsibleSection title="Wishlist">
+              <Text style={styles.emptyText}>Select or create a wishlist.</Text>
+            </CollapsibleSection>
           </View>
         )}
       </ScrollView>

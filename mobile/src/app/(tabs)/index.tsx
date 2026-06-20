@@ -11,6 +11,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
+import { CollapsibleSection } from "@/components/ui/collapsible-section";
 import { supabase } from "@/lib/supabase";
 
 type Contact = {
@@ -176,77 +177,79 @@ export default function HomeScreen() {
       </View>
 
       <View style={styles.card}>
-        <Text style={styles.cardTitle}>Profile</Text>
-        <TextInput
-          style={styles.input}
-          value={phoneNumber}
-          onChangeText={(text) => {
-            const digits = text.replace(/\D/g, "").slice(0, 10);
-            setPhoneNumber(digits);
-          }}
-          placeholder="Phone number"
-          placeholderTextColor="#6b7280"
-          keyboardType="phone-pad"
-          maxLength={10}
-        />
-        <Pressable
-          style={styles.primaryButton}
-          disabled={!isReady || savingPhone}
-          onPress={onSavePhone}
-        >
-          <Text style={styles.primaryButtonText}>
-            {savingPhone ? "Saving..." : "Save Phone"}
-          </Text>
-        </Pressable>
+        <CollapsibleSection title="Profile">
+          <TextInput
+            style={styles.input}
+            value={phoneNumber}
+            onChangeText={(text) => {
+              const digits = text.replace(/\D/g, "").slice(0, 10);
+              setPhoneNumber(digits);
+            }}
+            placeholder="Phone number"
+            placeholderTextColor="#6b7280"
+            keyboardType="phone-pad"
+            maxLength={10}
+          />
+          <Pressable
+            style={styles.primaryButton}
+            disabled={!isReady || savingPhone}
+            onPress={onSavePhone}
+          >
+            <Text style={styles.primaryButtonText}>
+              {savingPhone ? "Saving..." : "Save Phone"}
+            </Text>
+          </Pressable>
+        </CollapsibleSection>
       </View>
 
       <View style={styles.card}>
-        <Text style={styles.cardTitle}>Contacts</Text>
-        <TextInput
-          style={styles.input}
-          value={contactName}
-          onChangeText={setContactName}
-          placeholder="Contact name"
-          placeholderTextColor="#6b7280"
-        />
-        <TextInput
-          style={styles.input}
-          value={contactPhone}
-          onChangeText={(text) => {
-            const digits = text.replace(/\D/g, "").slice(0, 10);
-            setContactPhone(digits);
-          }}
-          placeholder="Contact phone"
-          placeholderTextColor="#6b7280"
-          keyboardType="phone-pad"
-          maxLength={10}
-        />
-        <Pressable
-          style={styles.primaryButton}
-          disabled={!isReady || addingContact}
-          onPress={onAddContact}
-        >
-          <Text style={styles.primaryButtonText}>
-            {addingContact ? "Adding..." : "Add Contact"}
-          </Text>
-        </Pressable>
-
-        <FlatList
-          data={contacts}
-          keyExtractor={(item) => item.id}
-          style={styles.list}
-          ListEmptyComponent={
-            <Text style={styles.emptyText}>
-              No contacts yet. Add your first invitee.
+        <CollapsibleSection title="Contacts">
+          <TextInput
+            style={styles.input}
+            value={contactName}
+            onChangeText={setContactName}
+            placeholder="Contact name"
+            placeholderTextColor="#6b7280"
+          />
+          <TextInput
+            style={styles.input}
+            value={contactPhone}
+            onChangeText={(text) => {
+              const digits = text.replace(/\D/g, "").slice(0, 10);
+              setContactPhone(digits);
+            }}
+            placeholder="Contact phone"
+            placeholderTextColor="#6b7280"
+            keyboardType="phone-pad"
+            maxLength={10}
+          />
+          <Pressable
+            style={styles.primaryButton}
+            disabled={!isReady || addingContact}
+            onPress={onAddContact}
+          >
+            <Text style={styles.primaryButtonText}>
+              {addingContact ? "Adding..." : "Add Contact"}
             </Text>
-          }
-          renderItem={({ item }) => (
-            <View style={styles.listItem}>
-              <Text style={styles.listName}>{item.name}</Text>
-              <Text style={styles.listPhone}>{item.phone || "No phone"}</Text>
-            </View>
-          )}
-        />
+          </Pressable>
+
+          <FlatList
+            data={contacts}
+            keyExtractor={(item) => item.id}
+            style={styles.list}
+            ListEmptyComponent={
+              <Text style={styles.emptyText}>
+                No contacts yet. Add your first invitee.
+              </Text>
+            }
+            renderItem={({ item }) => (
+              <View style={styles.listItem}>
+                <Text style={styles.listName}>{item.name}</Text>
+                <Text style={styles.listPhone}>{item.phone || "No phone"}</Text>
+              </View>
+            )}
+          />
+        </CollapsibleSection>
       </View>
 
       <Pressable style={styles.secondaryButton} onPress={onSignOut}>

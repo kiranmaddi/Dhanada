@@ -728,11 +728,11 @@ export default function GiftsPage() {
                 return (
                   <div key={gift.id} className="list-item row">
                     <div style={{ flex: 1 }}>
-                      <div className="list-name">{giftDisplayName(gift)}</div>
-                      <div className="list-meta">
+                      <div className="list-name">
                         {contact ? `From ${contact.name}` : ""}
                         {amount ? ` • ${amount}` : ""}
                       </div>
+                      <div className="list-meta">{giftDisplayName(gift)}</div>
                       {notes && <div className="list-meta">{notes}</div>}
                     </div>
                     <button

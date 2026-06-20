@@ -12,6 +12,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
+import { CollapsibleSection } from "@/components/ui/collapsible-section";
 import { supabase } from "@/lib/supabase";
 
 type AppEvent = {
@@ -476,222 +477,232 @@ export default function ExploreScreen() {
         </View>
 
         <View style={styles.card}>
-          <Text style={styles.cardTitle}>Create Event</Text>
-          <TextInput
-            style={styles.input}
-            value={eventName}
-            onChangeText={setEventName}
-            placeholder="Event name"
-            placeholderTextColor="#6b7280"
-          />
-          <TextInput
-            style={styles.input}
-            value={eventDate}
-            onChangeText={setEventDate}
-            placeholder="Event date (YYYY-MM-DD)"
-            placeholderTextColor="#6b7280"
-          />
-          <Pressable
-            style={styles.primaryButton}
-            disabled={creatingEvent}
-            onPress={onCreateEvent}
-          >
-            <Text style={styles.primaryButtonText}>
-              {creatingEvent ? "Creating..." : "Create Event"}
-            </Text>
-          </Pressable>
-        </View>
-
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>Your Events</Text>
-          <FlatList
-            data={events}
-            keyExtractor={(item) => item.id}
-            scrollEnabled={false}
-            ListEmptyComponent={
-              <Text style={styles.emptyText}>No events yet.</Text>
-            }
-            renderItem={({ item }) => {
-              const active = item.id === selectedEventId;
-              return (
-                <Pressable
-                  onPress={() => setSelectedEventId(item.id)}
-                  style={[styles.listItem, active && styles.listItemActive]}
-                >
-                  <Text style={styles.listName}>{item.event_name}</Text>
-                  <Text style={styles.listMeta}>
-                    {formatDate(item.event_date)}
-                  </Text>
-                </Pressable>
-              );
-            }}
-          />
-        </View>
-
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>Invitees</Text>
-          <Text style={styles.helperText}>
-            {selectedEvent
-              ? `Selected: ${selectedEvent.event_name}`
-              : "Select an event to add invitees."}
-          </Text>
-
-          <TextInput
-            style={styles.input}
-            value={contactSearch}
-            onChangeText={setContactSearch}
-            placeholder="Search contacts by name or phone"
-            placeholderTextColor="#6b7280"
-          />
-
-          <FlatList
-            data={filteredContacts}
-            keyExtractor={(item) => item.id}
-            scrollEnabled={false}
-            ListEmptyComponent={
-              <Text style={styles.emptyText}>
-                {contactSearch.trim()
-                  ? "No contacts match your search."
-                  : "No contacts available."}
+          <CollapsibleSection title="Create Event">
+            <TextInput
+              style={styles.input}
+              value={eventName}
+              onChangeText={setEventName}
+              placeholder="Event name"
+              placeholderTextColor="#6b7280"
+            />
+            <TextInput
+              style={styles.input}
+              value={eventDate}
+              onChangeText={setEventDate}
+              placeholder="Event date (YYYY-MM-DD)"
+              placeholderTextColor="#6b7280"
+            />
+            <Pressable
+              style={styles.primaryButton}
+              disabled={creatingEvent}
+              onPress={onCreateEvent}
+            >
+              <Text style={styles.primaryButtonText}>
+                {creatingEvent ? "Creating..." : "Create Event"}
               </Text>
-            }
-            renderItem={({ item }) => (
-              <View style={styles.contactRow}>
-                <View style={{ flex: 1 }}>
+            </Pressable>
+          </CollapsibleSection>
+        </View>
+
+        <View style={styles.card}>
+          <CollapsibleSection title="Your Events">
+            <FlatList
+              data={events}
+              keyExtractor={(item) => item.id}
+              scrollEnabled={false}
+              ListEmptyComponent={
+                <Text style={styles.emptyText}>No events yet.</Text>
+              }
+              renderItem={({ item }) => {
+                const active = item.id === selectedEventId;
+                return (
+                  <Pressable
+                    onPress={() => setSelectedEventId(item.id)}
+                    style={[styles.listItem, active && styles.listItemActive]}
+                  >
+                    <Text style={styles.listName}>{item.event_name}</Text>
+                    <Text style={styles.listMeta}>
+                      {formatDate(item.event_date)}
+                    </Text>
+                  </Pressable>
+                );
+              }}
+            />
+          </CollapsibleSection>
+        </View>
+
+        <View style={styles.card}>
+          <CollapsibleSection title="Invitees">
+            <Text style={styles.helperText}>
+              {selectedEvent
+                ? `Selected: ${selectedEvent.event_name}`
+                : "Select an event to add invitees."}
+            </Text>
+
+            <TextInput
+              style={styles.input}
+              value={contactSearch}
+              onChangeText={setContactSearch}
+              placeholder="Search contacts by name or phone"
+              placeholderTextColor="#6b7280"
+            />
+
+            <FlatList
+              data={filteredContacts}
+              keyExtractor={(item) => item.id}
+              scrollEnabled={false}
+              ListEmptyComponent={
+                <Text style={styles.emptyText}>
+                  {contactSearch.trim()
+                    ? "No contacts match your search."
+                    : "No contacts available."}
+                </Text>
+              }
+              renderItem={({ item }) => (
+                <View style={styles.contactRow}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.listName}>{item.name}</Text>
+                    <Text style={styles.listMeta}>
+                      {item.phone || "No phone"}
+                    </Text>
+                  </View>
+                  <Pressable
+                    style={styles.addButton}
+                    disabled={!selectedEventId || addingInvitee}
+                    onPress={() => onAddInvitee(item.id)}
+                  >
+                    <Text style={styles.addButtonText}>Add</Text>
+                  </Pressable>
+                </View>
+              )}
+            />
+          </CollapsibleSection>
+        </View>
+
+        <View style={styles.card}>
+          <CollapsibleSection title="Linked Invitees">
+            <FlatList
+              data={invitees}
+              keyExtractor={(item) => item.id}
+              scrollEnabled={false}
+              ListEmptyComponent={
+                <Text style={styles.emptyText}>No invitees linked yet.</Text>
+              }
+              renderItem={({ item }) => (
+                <View style={styles.listItem}>
                   <Text style={styles.listName}>{item.name}</Text>
                   <Text style={styles.listMeta}>
                     {item.phone || "No phone"}
                   </Text>
                 </View>
-                <Pressable
-                  style={styles.addButton}
-                  disabled={!selectedEventId || addingInvitee}
-                  onPress={() => onAddInvitee(item.id)}
-                >
-                  <Text style={styles.addButtonText}>Add</Text>
-                </Pressable>
-              </View>
-            )}
-          />
+              )}
+            />
+          </CollapsibleSection>
         </View>
 
         <View style={styles.card}>
-          <Text style={styles.cardTitle}>Linked Invitees</Text>
-          <FlatList
-            data={invitees}
-            keyExtractor={(item) => item.id}
-            scrollEnabled={false}
-            ListEmptyComponent={
-              <Text style={styles.emptyText}>No invitees linked yet.</Text>
-            }
-            renderItem={({ item }) => (
-              <View style={styles.listItem}>
-                <Text style={styles.listName}>{item.name}</Text>
-                <Text style={styles.listMeta}>{item.phone || "No phone"}</Text>
+          <CollapsibleSection title="Add Gift">
+            <Text style={styles.helperText}>
+              {selectedEvent
+                ? `Event: ${selectedEvent.event_name}`
+                : "Select an event first."}
+            </Text>
+
+            {invitees.length > 0 ? (
+              <View style={styles.chipWrap}>
+                {invitees.map((invitee) => {
+                  const active = invitee.id === selectedGiftContactId;
+                  return (
+                    <Pressable
+                      key={invitee.id}
+                      onPress={() => setSelectedGiftContactId(invitee.id)}
+                      style={[styles.chip, active && styles.chipActive]}
+                    >
+                      <Text style={styles.chipText}>{invitee.name}</Text>
+                    </Pressable>
+                  );
+                })}
               </View>
+            ) : (
+              <Text style={styles.emptyText}>
+                Add invitees before adding gifts.
+              </Text>
             )}
-          />
+
+            <TextInput
+              style={styles.input}
+              value={giftName}
+              onChangeText={setGiftName}
+              placeholder="Gift name"
+              placeholderTextColor="#6b7280"
+            />
+            <TextInput
+              style={styles.input}
+              value={giftAmount}
+              onChangeText={setGiftAmount}
+              placeholder="Amount (optional)"
+              placeholderTextColor="#6b7280"
+              keyboardType="decimal-pad"
+            />
+            <TextInput
+              style={[styles.input, styles.multilineInput]}
+              value={giftNotes}
+              onChangeText={setGiftNotes}
+              placeholder="Notes (optional)"
+              placeholderTextColor="#6b7280"
+              multiline
+              textAlignVertical="top"
+            />
+            <Pressable
+              style={styles.primaryButton}
+              disabled={
+                creatingGift || !selectedEventId || !selectedGiftContact
+              }
+              onPress={onCreateGift}
+            >
+              <Text style={styles.primaryButtonText}>
+                {creatingGift ? "Saving..." : "Add Gift"}
+              </Text>
+            </Pressable>
+          </CollapsibleSection>
         </View>
 
         <View style={styles.card}>
-          <Text style={styles.cardTitle}>Add Gift</Text>
-          <Text style={styles.helperText}>
-            {selectedEvent
-              ? `Event: ${selectedEvent.event_name}`
-              : "Select an event first."}
-          </Text>
-
-          {invitees.length > 0 ? (
-            <View style={styles.chipWrap}>
-              {invitees.map((invitee) => {
-                const active = invitee.id === selectedGiftContactId;
-                return (
-                  <Pressable
-                    key={invitee.id}
-                    onPress={() => setSelectedGiftContactId(invitee.id)}
-                    style={[styles.chip, active && styles.chipActive]}
-                  >
-                    <Text style={styles.chipText}>{invitee.name}</Text>
-                  </Pressable>
+          <CollapsibleSection title="Gifts For Event">
+            <FlatList
+              data={gifts}
+              keyExtractor={(item) => item.id}
+              scrollEnabled={false}
+              ListEmptyComponent={
+                <Text style={styles.emptyText}>No gifts recorded yet.</Text>
+              }
+              renderItem={({ item }) => {
+                const amount = parseAmount(
+                  item.amount ?? item.gift_value ?? null,
                 );
-              })}
-            </View>
-          ) : (
-            <Text style={styles.emptyText}>
-              Add invitees before adding gifts.
-            </Text>
-          )}
+                const note = getGiftNote(item);
+                const linkedContact = getGiftContact(item);
 
-          <TextInput
-            style={styles.input}
-            value={giftName}
-            onChangeText={setGiftName}
-            placeholder="Gift name"
-            placeholderTextColor="#6b7280"
-          />
-          <TextInput
-            style={styles.input}
-            value={giftAmount}
-            onChangeText={setGiftAmount}
-            placeholder="Amount (optional)"
-            placeholderTextColor="#6b7280"
-            keyboardType="decimal-pad"
-          />
-          <TextInput
-            style={[styles.input, styles.multilineInput]}
-            value={giftNotes}
-            onChangeText={setGiftNotes}
-            placeholder="Notes (optional)"
-            placeholderTextColor="#6b7280"
-            multiline
-            textAlignVertical="top"
-          />
-          <Pressable
-            style={styles.primaryButton}
-            disabled={creatingGift || !selectedEventId || !selectedGiftContact}
-            onPress={onCreateGift}
-          >
-            <Text style={styles.primaryButtonText}>
-              {creatingGift ? "Saving..." : "Add Gift"}
-            </Text>
-          </Pressable>
-        </View>
-
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>Gifts For Event</Text>
-          <FlatList
-            data={gifts}
-            keyExtractor={(item) => item.id}
-            scrollEnabled={false}
-            ListEmptyComponent={
-              <Text style={styles.emptyText}>No gifts recorded yet.</Text>
-            }
-            renderItem={({ item }) => {
-              const amount = parseAmount(
-                item.amount ?? item.gift_value ?? null,
-              );
-              const note = getGiftNote(item);
-              const linkedContact = getGiftContact(item);
-
-              return (
-                <View style={styles.listItem}>
-                  <Text style={styles.listName}>{getGiftName(item)}</Text>
-                  <Text style={styles.listMeta}>
-                    {linkedContact?.name
-                      ? `For ${linkedContact.name}`
-                      : "No invitee"}
-                    {amount !== null ? ` • Rs. ${amount}` : ""}
-                  </Text>
-                  <Text style={styles.listMeta}>
-                    {typeof item.created_at === "string"
-                      ? `Added ${formatDate(item.created_at)}`
-                      : ""}
-                  </Text>
-                  {note ? <Text style={styles.noteText}>{note}</Text> : null}
-                </View>
-              );
-            }}
-          />
+                return (
+                  <View style={styles.listItem}>
+                    <Text style={styles.listName}>{getGiftName(item)}</Text>
+                    <Text style={styles.listMeta}>
+                      {linkedContact?.name
+                        ? `For ${linkedContact.name}`
+                        : "No invitee"}
+                      {amount !== null ? ` • Rs. ${amount}` : ""}
+                    </Text>
+                    <Text style={styles.listMeta}>
+                      {typeof item.created_at === "string"
+                        ? `Added ${formatDate(item.created_at)}`
+                        : ""}
+                    </Text>
+                    {note ? <Text style={styles.noteText}>{note}</Text> : null}
+                  </View>
+                );
+              }}
+            />
+          </CollapsibleSection>
         </View>
       </ScrollView>
     </SafeAreaView>

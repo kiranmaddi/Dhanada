@@ -11,6 +11,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
+import { CollapsibleSection } from "@/components/ui/collapsible-section";
 import { supabase } from "@/lib/supabase";
 
 type AppEvent = { id: string; event_name: string; event_date: string };
@@ -177,99 +178,67 @@ export default function InviteesScreen() {
 
         {/* ── Event Selector ── */}
         <View style={styles.card}>
-          <Text style={styles.cardTitle}>Select Event</Text>
-          {events.length === 0 ? (
-            <Text style={styles.emptyText}>
-              No events yet — create one in the Events tab.
-            </Text>
-          ) : (
-            <FlatList
-              data={events}
-              keyExtractor={(item) => item.id}
-              scrollEnabled={false}
-              renderItem={({ item }) => {
-                const active = item.id === selectedEventId;
-                return (
-                  <Pressable
-                    style={[styles.eventChip, active && styles.eventChipActive]}
-                    onPress={() => setSelectedEventId(item.id)}
-                  >
-                    <Text
+          <CollapsibleSection title="Select Event">
+            {events.length === 0 ? (
+              <Text style={styles.emptyText}>
+                No events yet — create one in the Events tab.
+              </Text>
+            ) : (
+              <FlatList
+                data={events}
+                keyExtractor={(item) => item.id}
+                scrollEnabled={false}
+                renderItem={({ item }) => {
+                  const active = item.id === selectedEventId;
+                  return (
+                    <Pressable
                       style={[
-                        styles.eventChipText,
-                        active && styles.eventChipTextActive,
+                        styles.eventChip,
+                        active && styles.eventChipActive,
                       ]}
+                      onPress={() => setSelectedEventId(item.id)}
                     >
-                      {item.event_name}
-                    </Text>
-                    <Text
-                      style={[
-                        styles.eventChipDate,
-                        active && styles.eventChipTextActive,
-                      ]}
-                    >
-                      {toDisplayDate(item.event_date)}
-                    </Text>
-                  </Pressable>
-                );
-              }}
-            />
-          )}
+                      <Text
+                        style={[
+                          styles.eventChipText,
+                          active && styles.eventChipTextActive,
+                        ]}
+                      >
+                        {item.event_name}
+                      </Text>
+                      <Text
+                        style={[
+                          styles.eventChipDate,
+                          active && styles.eventChipTextActive,
+                        ]}
+                      >
+                        {toDisplayDate(item.event_date)}
+                      </Text>
+                    </Pressable>
+                  );
+                }}
+              />
+            )}
+          </CollapsibleSection>
         </View>
 
         {/* ── Invitees for selected event ── */}
         {selectedEvent && (
           <View style={styles.card}>
-            <Text style={styles.cardTitle}>
-              Invitees — {selectedEvent.event_name}
-            </Text>
-            {invitees.length === 0 ? (
-              <Text style={styles.emptyText}>
-                No invitees yet. Add from contacts below.
-              </Text>
-            ) : (
-              <FlatList
-                data={invitees}
-                keyExtractor={(item) => item.id}
-                scrollEnabled={false}
-                renderItem={({ item }) => (
-                  <View style={styles.inviteeRow}>
-                    <View style={{ flex: 1 }}>
-                      <Text style={styles.name}>{item.name}</Text>
-                      <Text style={styles.meta}>
-                        {item.phone ?? "No phone"}
-                      </Text>
-                    </View>
-                    <Pressable
-                      style={styles.removeButton}
-                      onPress={() => onRemoveInvitee(item.id)}
-                    >
-                      <Text style={styles.removeText}>Remove</Text>
-                    </Pressable>
-                  </View>
-                )}
-              />
-            )}
-          </View>
-        )}
-
-        {/* ── All Contacts — add to event ── */}
-        {selectedEvent && (
-          <View style={styles.card}>
-            <Text style={styles.cardTitle}>Add from Contacts</Text>
-            {contacts.length === 0 ? (
-              <Text style={styles.emptyText}>
-                No contacts — add them in the Home tab.
-              </Text>
-            ) : (
-              <FlatList
-                data={contacts}
-                keyExtractor={(item) => item.id}
-                scrollEnabled={false}
-                renderItem={({ item }) => {
-                  const alreadyAdded = invitees.some((i) => i.id === item.id);
-                  return (
-                    <View style={styles.contactRow}>
+            <CollapsibleSection
+              title={`Invitees — ${selectedEvent.event_name}`}
+            >
+              {invitees.length === 0 ? (
+                <Text style={styles.emptyText}>
+                  No invitees yet. Add from contacts below.
+                </Text>
+              ) : (
+                <FlatList
+                  data={invitees}
+                  keyExtractor={(item) => item.id}
+                  scrollEnabled={false}
+                  renderItem={({ item }) => (
+                    <View style={styles.inviteeRow}>
                       <View style={{ flex: 1 }}>
                         <Text style={styles.name}>{item.name}</Text>
                         <Text style={styles.meta}>
@@ -277,22 +246,61 @@ export default function InviteesScreen() {
                         </Text>
                       </View>
                       <Pressable
-                        style={[
-                          styles.addButton,
-                          (alreadyAdded || adding) && styles.addButtonDisabled,
-                        ]}
-                        disabled={alreadyAdded || adding}
-                        onPress={() => onAddInvitee(item.id)}
+                        style={styles.removeButton}
+                        onPress={() => onRemoveInvitee(item.id)}
                       >
-                        <Text style={styles.addButtonText}>
-                          {alreadyAdded ? "Added" : "Add"}
-                        </Text>
+                        <Text style={styles.removeText}>Remove</Text>
                       </Pressable>
                     </View>
-                  );
-                }}
-              />
-            )}
+                  )}
+                />
+              )}
+            </CollapsibleSection>
+          </View>
+        )}
+
+        {/* ── All Contacts — add to event ── */}
+        {selectedEvent && (
+          <View style={styles.card}>
+            <CollapsibleSection title="Add from Contacts">
+              {contacts.length === 0 ? (
+                <Text style={styles.emptyText}>
+                  No contacts — add them in the Home tab.
+                </Text>
+              ) : (
+                <FlatList
+                  data={contacts}
+                  keyExtractor={(item) => item.id}
+                  scrollEnabled={false}
+                  renderItem={({ item }) => {
+                    const alreadyAdded = invitees.some((i) => i.id === item.id);
+                    return (
+                      <View style={styles.contactRow}>
+                        <View style={{ flex: 1 }}>
+                          <Text style={styles.name}>{item.name}</Text>
+                          <Text style={styles.meta}>
+                            {item.phone ?? "No phone"}
+                          </Text>
+                        </View>
+                        <Pressable
+                          style={[
+                            styles.addButton,
+                            (alreadyAdded || adding) &&
+                              styles.addButtonDisabled,
+                          ]}
+                          disabled={alreadyAdded || adding}
+                          onPress={() => onAddInvitee(item.id)}
+                        >
+                          <Text style={styles.addButtonText}>
+                            {alreadyAdded ? "Added" : "Add"}
+                          </Text>
+                        </Pressable>
+                      </View>
+                    );
+                  }}
+                />
+              )}
+            </CollapsibleSection>
           </View>
         )}
       </ScrollView>
