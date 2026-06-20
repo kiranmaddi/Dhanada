@@ -346,33 +346,15 @@ export default function ExploreScreen() {
     const basePayload = {
       event_id: selectedEventId,
       contact_id: selectedGiftContactId,
+      owner_id: userId,
+      gift_type: "gift",
     };
 
     const payloads: Record<string, unknown>[] = [
       {
         ...basePayload,
-        gift_name: trimmedGiftName,
-        amount: parsedAmount,
-        notes: giftNotes.trim() || null,
-      },
-      {
-        ...basePayload,
-        item_name: trimmedGiftName,
-        amount: parsedAmount,
-        notes: giftNotes.trim() || null,
-      },
-      {
-        ...basePayload,
-        gift_name: trimmedGiftName,
-        gift_value: parsedAmount,
-        note: giftNotes.trim() || null,
-      },
-      {
-        ...basePayload,
-        owner_id: userId,
-        gift_name: trimmedGiftName,
-        amount: parsedAmount,
-        notes: giftNotes.trim() || null,
+        item_description: trimmedGiftName,
+        value_amount: parsedAmount,
       },
     ];
 

@@ -41,12 +41,16 @@ export async function proxy(request: NextRequest) {
 
   const isAuthPage = request.nextUrl.pathname.startsWith("/auth");
   const isDashboard = request.nextUrl.pathname.startsWith("/dashboard");
+  const isResetPassword = request.nextUrl.pathname.startsWith(
+    "/auth/reset-password",
+  );
+  const isAuthCallback = request.nextUrl.pathname.startsWith("/auth/callback");
 
   if (!user && isDashboard) {
     return NextResponse.redirect(new URL("/auth/sign-in", request.url));
   }
 
-  if (user && isAuthPage) {
+  if (user && isAuthPage && !isResetPassword && !isAuthCallback) {
     return NextResponse.redirect(new URL("/dashboard", request.url));
   }
 

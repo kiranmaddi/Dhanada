@@ -9,6 +9,7 @@ import {
   TextInput,
   View,
 } from "react-native";
+import * as Linking from "expo-linking";
 import { Link } from "expo-router";
 
 import { supabase } from "../../lib/supabase";
@@ -25,7 +26,10 @@ export default function ForgotPasswordScreen() {
 
     setLoading(true);
 
-    const { error } = await supabase.auth.resetPasswordForEmail(email.trim());
+    const redirectTo = Linking.createURL("/reset-password");
+    const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
+      redirectTo,
+    });
 
     setLoading(false);
 

@@ -241,3 +241,250 @@ textarea.input {
   min-height: 72px;
   resize: vertical;
 }
+
+/* ─── Dashboard new screens ─── */
+
+.field-label {
+  display: block;
+  color: var(--text-muted);
+  font-size: 0.8rem;
+  margin-bottom: 6px;
+  margin-top: 4px;
+}
+
+.toggle-row {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.toggle-option {
+  flex: 1;
+  padding: 9px 0;
+  border-radius: 10px;
+  border: 1px solid var(--input-border);
+  background: var(--input-bg);
+  color: var(--text-muted);
+  font-weight: 600;
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+
+.toggle-option.toggle-active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--bg);
+}
+
+.event-item {
+  border: 1px solid var(--input-border);
+  border-radius: 10px;
+  padding: 10px 12px;
+  margin-bottom: 8px;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.event-item:hover {
+  background: #1c2b4b;
+}
+
+.event-item-active,
+.event-item.event-item-active {
+  background: #00d2ff22;
+  border-color: var(--accent);
+}
+
+.event-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+
+.event-detail {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.detail-row {
+  color: var(--text-muted);
+  font-size: 0.85rem;
+}
+
+.date-badge {
+  background: #1a2c54;
+  color: var(--text-muted);
+  border-radius: 6px;
+  padding: 2px 8px;
+  font-size: 0.78rem;
+  white-space: nowrap;
+}
+
+.rep-badge {
+  background: #0d2540;
+  color: var(--accent);
+  border-radius: 6px;
+  padding: 2px 8px;
+  font-size: 0.78rem;
+}
+
+.remove-btn {
+  background: #3b1f2b;
+  border: none;
+  border-radius: 8px;
+  padding: 6px 12px;
+  color: #f87171;
+  font-weight: 700;
+  font-size: 0.82rem;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.remove-btn:hover {
+  background: #5c2035;
+}
+
+/* Wish list */
+.wish-checkbox {
+  width: 22px;
+  height: 22px;
+  min-width: 22px;
+  border-radius: 5px;
+  border: 2px solid var(--accent);
+  background: transparent;
+  color: var(--accent);
+  font-weight: 900;
+  font-size: 13px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-top: 2px;
+  padding: 0;
+}
+
+.priority-badge {
+  display: inline-block;
+  font-size: 0.72rem;
+  font-weight: 700;
+  border: 1px solid;
+  border-radius: 5px;
+  padding: 1px 7px;
+  margin-top: 4px;
+  text-transform: capitalize;
+}
+
+.icon-btn {
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 14px;
+  padding: 4px 6px;
+  border-radius: 4px;
+  margin-top: 2px;
+}
+
+.icon-btn:hover {
+  color: #f87171;
+}
+
+.status-badge {
+  border-radius: 999px;
+  font-size: 0.75rem;
+  padding: 2px 10px;
+  border: 1px solid;
+}
+
+.status-active {
+  color: #22c55e;
+  border-color: #22c55e66;
+  background: #22c55e1a;
+}
+
+.status-inactive {
+  color: #f59e0b;
+  border-color: #f59e0b66;
+  background: #f59e0b1a;
+}
+
+.wishlist-thumb {
+  width: 64px;
+  height: 64px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  object-fit: cover;
+}
+
+.wishlist-thumb-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-muted);
+  font-size: 0.7rem;
+  background: #1b2846;
+}
+
+/* ─── Search Dropdown (Scalable Invitee Selection) ─── */
+.search-dropdown {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-top: none;
+  border-radius: 0 0 10px 10px;
+  max-height: 250px;
+  overflow-y: auto;
+  z-index: 10;
+}
+
+.search-dropdown-item {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border);
+  cursor: pointer;
+  transition: background 0.1s;
+}
+
+.search-dropdown-item:last-child {
+  border-bottom: none;
+}
+
+.search-dropdown-item:hover {
+  background: #1a2c54;
+}
+
+.search-no-match {
+  padding: 12px;
+  color: var(--text-muted);
+  font-size: 0.9rem;
+}
+
+.add-btn {
+  background: #1f2a44;
+  border: 1px solid #2e4068;
+  border-radius: 8px;
+  padding: 8px 14px;
+  color: var(--text-muted);
+  font-weight: 700;
+  cursor: pointer;
+  font-size: 0.9rem;
+  white-space: nowrap;
+  transition: all 0.15s;
+}
+
+.add-btn:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.add-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}

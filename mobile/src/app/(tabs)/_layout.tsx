@@ -1,7 +1,30 @@
 import { Tabs } from "expo-router";
-import { Image, StyleSheet, useColorScheme } from "react-native";
+import { Image, StyleSheet, Text, useColorScheme } from "react-native";
 
 import { Colors } from "@/constants/theme";
+
+function TabIcon({
+  source,
+  color,
+}: {
+  source: ReturnType<typeof require>;
+  color: string;
+}) {
+  return <Image source={source} style={[styles.icon, { tintColor: color }]} />;
+}
+
+function TabEmoji({ emoji, color }: { emoji: string; color: string }) {
+  return (
+    <Text
+      style={{
+        fontSize: 18,
+        opacity: color === "#000000" || color === "#ffffff" ? 1 : 0.8,
+      }}
+    >
+      {emoji}
+    </Text>
+  );
+}
 
 export default function TabsLayout() {
   const scheme = useColorScheme();
@@ -17,6 +40,7 @@ export default function TabsLayout() {
         ],
         tabBarActiveTintColor: colors.text,
         tabBarInactiveTintColor: colors.textSecondary,
+        tabBarLabelStyle: styles.label,
       }}
     >
       <Tabs.Screen
@@ -24,36 +48,58 @@ export default function TabsLayout() {
         options={{
           title: "Home",
           tabBarIcon: ({ color }) => (
-            <Image
+            <TabIcon
               source={require("@/assets/images/tabIcons/home.png")}
-              style={[styles.icon, { tintColor: color }]}
+              color={color}
             />
           ),
         }}
       />
       <Tabs.Screen
-        name="explore"
+        name="events"
         options={{
-          title: "Explore",
-          tabBarIcon: ({ color }) => (
-            <Image
-              source={require("@/assets/images/tabIcons/explore.png")}
-              style={[styles.icon, { tintColor: color }]}
-            />
-          ),
+          title: "Events",
+          tabBarIcon: ({ color }) => <TabEmoji emoji="📅" color={color} />,
         }}
       />
+      <Tabs.Screen
+        name="invitees"
+        options={{
+          title: "Invitees",
+          tabBarIcon: ({ color }) => <TabEmoji emoji="👥" color={color} />,
+        }}
+      />
+      <Tabs.Screen
+        name="wishlist"
+        options={{
+          title: "Wish List",
+          tabBarIcon: ({ color }) => <TabEmoji emoji="⭐" color={color} />,
+        }}
+      />
+      <Tabs.Screen
+        name="gifts"
+        options={{
+          title: "Gifts",
+          tabBarIcon: ({ color }) => <TabEmoji emoji="🎁" color={color} />,
+        }}
+      />
+      {/* Keep explore file routable but hidden from tab bar */}
+      <Tabs.Screen name="explore" options={{ href: null }} />
     </Tabs>
   );
 }
 
 const styles = StyleSheet.create({
   tabBar: {
-    paddingVertical: 10,
+    paddingVertical: 6,
     borderTopWidth: StyleSheet.hairlineWidth,
+    height: 64,
   },
   icon: {
     width: 20,
     height: 20,
+  },
+  label: {
+    fontSize: 10,
   },
 });
