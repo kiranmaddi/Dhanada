@@ -60,12 +60,18 @@ function normalizeGiftType(value: unknown): GiftType {
   return "gift";
 }
 
+function isValidOptionalPhone(value: string) {
+  const digits = value.replace(/\D/g, "");
+  return digits.length === 0 || digits.length === 10;
+}
+
 export default function GiftsPage() {
   const supabase = createClient();
 
   const [loading, setLoading] = useState(true);
   const [userId, setUserId] = useState<string | null>(null);
   const [events, setEvents] = useState<AppEvent[]>([]);
+  const [contacts, setContacts] = useState<Contact[]>([]);
   const [invitees, setInvitees] = useState<Contact[]>([]);
   const [gifts, setGifts] = useState<GiftRow[]>([]);
   const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
@@ -97,22 +103,23 @@ export default function GiftsPage() {
   );
 
   const selectedContact = useMemo(
-    () => invitees.find((c) => c.id === selectedContactId) ?? null,
-    [invitees, selectedContactId],
+    () => contacts.find((c) => c.id === selectedContactId) ?? null,
+    [contacts, selectedContactId],
   );
 
   const filteredInvitees = useMemo(() => {
     if (!searchQuery.trim()) return [];
     const q = searchQuery.trim().toLowerCase();
     const qDigits = q.replace(/\D/g, "");
-    return invitees
-      .filter(
-        (inv) =>
-          inv.name.toLowerCase().includes(q) ||
-          (inv.phone ? inv.phone.replace(/\D/g, "").includes(qDigits) : false),
-      )
+    return contacts
+      .filter((inv) => {
+        const nameMatch = inv.name.toLowerCase().includes(q);
+        const phoneDigits = inv.phone ? inv.phone.replace(/\D/g, "") : "";
+        const phoneMatch = qDigits.length > 0 && phoneDigits.includes(qDigits);
+        return nameMatch || phoneMatch;
+      })
       .slice(0, 10);
-  }, [searchQuery, invitees]);
+  }, [searchQuery, contacts]);
 
   const fetchInvitees = useCallback(
     async (eventId: string) => {
@@ -126,9 +133,12 @@ export default function GiftsPage() {
         if (!c) return [];
         return Array.isArray(c) ? c : [c];
       });
-      const list = normalized as Contact[];
+      const list = Array.from(
+        new Map(
+          (normalized as Contact[]).map((contact) => [contact.id, contact]),
+        ).values(),
+      );
       setInvitees(list);
-      if (list.length > 0) setSelectedContactId((cur) => cur ?? list[0].id);
     },
     [supabase],
   );
@@ -141,6 +151,18 @@ export default function GiftsPage() {
         .eq("event_id", eventId)
         .order("created_at", { ascending: false });
       setGifts((data ?? []) as GiftRow[]);
+    },
+    [supabase],
+  );
+
+  const linkInviteeIfMissing = useCallback(
+    async (eventId: string, contactId: string) => {
+      const { error } = await supabase
+        .from("event_invitees")
+        .insert({ event_id: eventId, contact_id: contactId });
+      if (error && error.code !== "23505") {
+        console.warn("Could not link invitee", error.message);
+      }
     },
     [supabase],
   );
@@ -160,9 +182,15 @@ export default function GiftsPage() {
         .eq("owner_id", uid)
         .order("event_date", { ascending: true });
 
+      const { data: contactsData } = await supabase
+        .from("contacts")
+        .select("id,name,phone")
+        .eq("owner_id", uid)
+        .order("name", { ascending: true });
+
       const evList = (evData ?? []) as AppEvent[];
       setEvents(evList);
-      if (evList.length > 0) setSelectedEventId(evList[0].id);
+      setContacts((contactsData ?? []) as Contact[]);
       setLoading(false);
     });
   }, [supabase]);
@@ -174,6 +202,7 @@ export default function GiftsPage() {
       setSelectedContactId(null);
       return;
     }
+    setSelectedContactId(null);
     fetchInvitees(selectedEventId);
     fetchGifts(selectedEventId);
   }, [selectedEventId, fetchInvitees, fetchGifts]);
@@ -182,6 +211,11 @@ export default function GiftsPage() {
     if (!userId || !selectedEventId) return;
     if (!newContactName.trim()) {
       alert("Contact name is required.");
+      return;
+    }
+
+    if (!isValidOptionalPhone(newContactPhone)) {
+      alert("Phone number must be exactly 10 digits if provided.");
       return;
     }
 
@@ -212,6 +246,11 @@ export default function GiftsPage() {
       if (inviteeError) {
         throw new Error(inviteeError.message);
       }
+
+      setContacts((cur) => {
+        const exists = cur.some((c) => c.id === contactData.id);
+        return exists ? cur : [contactData as Contact, ...cur];
+      });
 
       await fetchInvitees(selectedEventId);
       setSelectedContactId(contactData.id);
@@ -249,6 +288,8 @@ export default function GiftsPage() {
     }
 
     setCreating(true);
+
+    await linkInviteeIfMissing(selectedEventId, selectedContactId);
 
     const base = {
       event_id: selectedEventId,
@@ -312,7 +353,7 @@ export default function GiftsPage() {
 
   async function onUpdateGift(e: React.FormEvent) {
     e.preventDefault();
-    if (!editingGiftId || !selectedContactId) return;
+    if (!editingGiftId || !selectedContactId || !selectedEventId) return;
 
     if (giftType === "cash" && !giftAmount.trim()) {
       alert("Amount is required for Cash gifts.");
@@ -331,6 +372,8 @@ export default function GiftsPage() {
     }
 
     setUpdatingGift(true);
+
+    await linkInviteeIfMissing(selectedEventId, selectedContactId);
 
     const base = {
       contact_id: selectedContactId,
@@ -479,8 +522,8 @@ export default function GiftsPage() {
                 ? `Edit Gift — ${selectedEvent.event_name}`
                 : `Add Gift — ${selectedEvent.event_name}`}
             </div>
-            {invitees.length === 0 ? (
-              <p className="empty">Add invitees first in the Invitees tab.</p>
+            {contacts.length === 0 ? (
+              <p className="empty">No contacts found. Add contacts first.</p>
             ) : (
               <form
                 onSubmit={(e) => {
@@ -493,7 +536,7 @@ export default function GiftsPage() {
                 }}
               >
                 <label className="field-label">
-                  Search Invitee by Name or Phone
+                  Search Contact by Name or Phone
                 </label>
                 <div style={{ position: "relative", marginBottom: 12 }}>
                   <input
@@ -529,7 +572,7 @@ export default function GiftsPage() {
                         </>
                       ) : searchQuery.trim() ? (
                         <div className="search-no-match">
-                          <p>No invitee found</p>
+                          <p>No contact found</p>
                           <div style={{ marginTop: 8 }}>
                             <input
                               className="input"
@@ -570,7 +613,7 @@ export default function GiftsPage() {
                 </div>
 
                 {selectedContact && (
-                  <div className="helper">
+                  <div className="card-title">
                     Selected: <strong>{selectedContact.name}</strong>
                     {selectedContact.phone && ` • ${selectedContact.phone}`}
                   </div>

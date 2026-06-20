@@ -79,6 +79,11 @@ function normalizeGiftType(value: unknown): GiftType {
   return "gift";
 }
 
+function isValidOptionalPhone(value: string) {
+  const digits = value.replace(/\D/g, "");
+  return digits.length === 0 || digits.length === 10;
+}
+
 export default function GiftsScreen() {
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
@@ -87,6 +92,7 @@ export default function GiftsScreen() {
   const [userId, setUserId] = useState<string | null>(null);
 
   const [events, setEvents] = useState<AppEvent[]>([]);
+  const [contacts, setContacts] = useState<Contact[]>([]);
   const [invitees, setInvitees] = useState<Contact[]>([]);
   const [gifts, setGifts] = useState<GiftRow[]>([]);
 
@@ -113,8 +119,8 @@ export default function GiftsScreen() {
   );
 
   const selectedContact = useMemo(
-    () => invitees.find((c) => c.id === selectedContactId) ?? null,
-    [invitees, selectedContactId],
+    () => contacts.find((c) => c.id === selectedContactId) ?? null,
+    [contacts, selectedContactId],
   );
 
   const editingGift = useMemo(
@@ -126,14 +132,15 @@ export default function GiftsScreen() {
     if (!searchQuery.trim()) return [];
     const q = searchQuery.trim().toLowerCase();
     const qDigits = q.replace(/\D/g, "");
-    return invitees
-      .filter(
-        (inv) =>
-          inv.name.toLowerCase().includes(q) ||
-          (inv.phone ? inv.phone.replace(/\D/g, "").includes(qDigits) : false),
-      )
+    return contacts
+      .filter((inv) => {
+        const nameMatch = inv.name.toLowerCase().includes(q);
+        const phoneDigits = inv.phone ? inv.phone.replace(/\D/g, "") : "";
+        const phoneMatch = qDigits.length > 0 && phoneDigits.includes(qDigits);
+        return nameMatch || phoneMatch;
+      })
       .slice(0, 10);
-  }, [searchQuery, invitees]);
+  }, [searchQuery, contacts]);
 
   const startEditGift = (gift: GiftRow) => {
     setSelectedContactId(gift.contact_id);
@@ -155,31 +162,31 @@ export default function GiftsScreen() {
     setEditingGiftId(null);
   };
 
-  const fetchInvitees = useCallback(
-    async (eventId: string) => {
-      const { data, error } = await supabase
-        .from("event_invitees")
-        .select("id, contacts(id,name,phone)")
-        .eq("event_id", eventId);
+  const fetchInvitees = useCallback(async (eventId: string) => {
+    const { data, error } = await supabase
+      .from("event_invitees")
+      .select("id, contacts(id,name,phone)")
+      .eq("event_id", eventId);
 
-      if (error) {
-        Alert.alert("Invitees error", error.message);
-        return;
-      }
+    if (error) {
+      Alert.alert("Invitees error", error.message);
+      return;
+    }
 
-      const normalized = (data ?? []).flatMap((row: { contacts?: unknown }) => {
-        const c = row.contacts as Contact | Contact[] | null;
-        if (!c) return [];
-        return Array.isArray(c) ? c : [c];
-      });
+    const normalized = (data ?? []).flatMap((row: { contacts?: unknown }) => {
+      const c = row.contacts as Contact | Contact[] | null;
+      if (!c) return [];
+      return Array.isArray(c) ? c : [c];
+    });
 
-      setInvitees(normalized as Contact[]);
-      if (normalized.length > 0 && !selectedContactId) {
-        setSelectedContactId((normalized[0] as Contact).id);
-      }
-    },
-    [selectedContactId],
-  );
+    const deduped = Array.from(
+      new Map(
+        (normalized as Contact[]).map((contact) => [contact.id, contact]),
+      ).values(),
+    );
+
+    setInvitees(deduped);
+  }, []);
 
   const fetchGifts = useCallback(async (eventId: string) => {
     const { data, error } = await supabase
@@ -195,6 +202,18 @@ export default function GiftsScreen() {
 
     setGifts((data ?? []) as GiftRow[]);
   }, []);
+
+  const linkInviteeIfMissing = useCallback(
+    async (eventId: string, contactId: string) => {
+      const { error } = await supabase
+        .from("event_invitees")
+        .insert({ event_id: eventId, contact_id: contactId });
+      if (error && error.code !== "23505") {
+        console.warn("Could not link invitee", error.message);
+      }
+    },
+    [],
+  );
 
   useEffect(() => {
     let mounted = true;
@@ -218,6 +237,12 @@ export default function GiftsScreen() {
         .eq("owner_id", uid)
         .order("event_date", { ascending: true });
 
+      const { data: contactsData, error: contactsError } = await supabase
+        .from("contacts")
+        .select("id,name,phone")
+        .eq("owner_id", uid)
+        .order("name", { ascending: true });
+
       if (!mounted) return;
 
       if (error) {
@@ -225,7 +250,12 @@ export default function GiftsScreen() {
       } else {
         const evList = (data ?? []) as AppEvent[];
         setEvents(evList);
-        if (evList.length > 0) setSelectedEventId(evList[0].id);
+      }
+
+      if (contactsError) {
+        Alert.alert("Contacts error", contactsError.message);
+      } else {
+        setContacts((contactsData ?? []) as Contact[]);
       }
 
       setLoading(false);
@@ -244,28 +274,23 @@ export default function GiftsScreen() {
       return;
     }
 
+    setSelectedContactId(null);
     void fetchInvitees(selectedEventId);
     void fetchGifts(selectedEventId);
   }, [fetchGifts, fetchInvitees, selectedEventId]);
-
-  // keep contact selection valid when invitees change
-  useEffect(() => {
-    if (!invitees.length) {
-      setSelectedContactId(null);
-      return;
-    }
-    if (
-      !selectedContactId ||
-      !invitees.some((i) => i.id === selectedContactId)
-    ) {
-      setSelectedContactId(invitees[0].id);
-    }
-  }, [invitees, selectedContactId]);
 
   async function onAddNewContact() {
     if (!userId || !selectedEventId) return;
     if (!newContactName.trim()) {
       Alert.alert("Validation", "Contact name is required.");
+      return;
+    }
+
+    if (!isValidOptionalPhone(newContactPhone)) {
+      Alert.alert(
+        "Validation",
+        "Phone number must be exactly 10 digits if provided.",
+      );
       return;
     }
 
@@ -296,6 +321,11 @@ export default function GiftsScreen() {
       if (inviteeError) {
         throw new Error(inviteeError.message);
       }
+
+      setContacts((cur) => {
+        const exists = cur.some((c) => c.id === contactData.id);
+        return exists ? cur : [contactData as Contact, ...cur];
+      });
 
       await fetchInvitees(selectedEventId);
       setSelectedContactId(contactData.id);
@@ -339,6 +369,8 @@ export default function GiftsScreen() {
     }
 
     setCreating(true);
+
+    await linkInviteeIfMissing(selectedEventId, selectedContactId);
 
     const base = {
       event_id: selectedEventId,
@@ -472,14 +504,14 @@ export default function GiftsScreen() {
               Add Gift — {selectedEvent.event_name}
             </Text>
 
-            {invitees.length === 0 ? (
+            {contacts.length === 0 ? (
               <Text style={styles.emptyText}>
-                Add invitees in the Invitees tab before adding gifts.
+                No contacts found. Add contacts first.
               </Text>
             ) : (
               <>
                 <Text style={styles.label}>
-                  Search Invitee by Name or Phone
+                  Search Contact by Name or Phone
                 </Text>
                 <TextInput
                   style={styles.input}
@@ -518,7 +550,7 @@ export default function GiftsScreen() {
                       ))
                     ) : (
                       <View style={styles.noMatch}>
-                        <Text style={styles.noMatchText}>No invitee found</Text>
+                        <Text style={styles.noMatchText}>No contact found</Text>
                         <TextInput
                           style={[styles.input, styles.mt8]}
                           placeholder="New contact name *"

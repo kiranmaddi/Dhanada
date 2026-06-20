@@ -19,6 +19,11 @@ type Contact = {
   phone: string | null;
 };
 
+function isValidOptionalPhone(value: string) {
+  const digits = value.replace(/\D/g, "");
+  return digits.length === 0 || digits.length === 10;
+}
+
 export default function HomeScreen() {
   const [loading, setLoading] = useState(true);
   const [savingPhone, setSavingPhone] = useState(false);
@@ -86,6 +91,14 @@ export default function HomeScreen() {
   async function onSavePhone() {
     if (!userId) return;
 
+    if (!isValidOptionalPhone(phoneNumber)) {
+      Alert.alert(
+        "Validation",
+        "Phone number must be exactly 10 digits if provided.",
+      );
+      return;
+    }
+
     setSavingPhone(true);
 
     const { error } = await supabase.from("profiles").upsert({
@@ -109,6 +122,14 @@ export default function HomeScreen() {
     const trimmedName = contactName.trim();
     if (!trimmedName) {
       Alert.alert("Validation", "Contact name is required.");
+      return;
+    }
+
+    if (!isValidOptionalPhone(contactPhone)) {
+      Alert.alert(
+        "Validation",
+        "Phone number must be exactly 10 digits if provided.",
+      );
       return;
     }
 
@@ -159,10 +180,14 @@ export default function HomeScreen() {
         <TextInput
           style={styles.input}
           value={phoneNumber}
-          onChangeText={setPhoneNumber}
+          onChangeText={(text) => {
+            const digits = text.replace(/\D/g, "").slice(0, 10);
+            setPhoneNumber(digits);
+          }}
           placeholder="Phone number"
           placeholderTextColor="#6b7280"
           keyboardType="phone-pad"
+          maxLength={10}
         />
         <Pressable
           style={styles.primaryButton}
@@ -187,10 +212,14 @@ export default function HomeScreen() {
         <TextInput
           style={styles.input}
           value={contactPhone}
-          onChangeText={setContactPhone}
+          onChangeText={(text) => {
+            const digits = text.replace(/\D/g, "").slice(0, 10);
+            setContactPhone(digits);
+          }}
           placeholder="Contact phone"
           placeholderTextColor="#6b7280"
           keyboardType="phone-pad"
+          maxLength={10}
         />
         <Pressable
           style={styles.primaryButton}

@@ -12,6 +12,11 @@ interface Props {
   initialPhone: string;
 }
 
+function isValidOptionalPhone(value: string) {
+  const digits = value.replace(/\D/g, "");
+  return digits.length === 0 || digits.length === 10;
+}
+
 export default function DashboardClient({
   userId,
   email,
@@ -59,6 +64,11 @@ export default function DashboardClient({
   }, [fetchContacts]);
 
   async function onSavePhone() {
+    if (!isValidOptionalPhone(phone)) {
+      alert("Phone number must be exactly 10 digits if provided.");
+      return;
+    }
+
     setSavingPhone(true);
     await supabase
       .from("profiles")
@@ -69,6 +79,11 @@ export default function DashboardClient({
   async function onAddContact(e: React.FormEvent) {
     e.preventDefault();
     if (!contactName.trim()) return;
+
+    if (!isValidOptionalPhone(contactPhone)) {
+      alert("Phone number must be exactly 10 digits if provided.");
+      return;
+    }
 
     if (editingContactId) {
       // Update mode

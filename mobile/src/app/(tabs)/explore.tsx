@@ -57,6 +57,10 @@ function parseAmount(value: unknown) {
   return null;
 }
 
+function normalizePhone(value: string | null | undefined) {
+  return (value ?? "").replace(/\D/g, "");
+}
+
 function getGiftName(gift: GiftRow) {
   const candidates = [
     gift.gift_name,
@@ -97,6 +101,7 @@ export default function ExploreScreen() {
   const [selectedGiftContactId, setSelectedGiftContactId] = useState<
     string | null
   >(null);
+  const [contactSearch, setContactSearch] = useState("");
   const [giftName, setGiftName] = useState("");
   const [giftAmount, setGiftAmount] = useState("");
   const [giftNotes, setGiftNotes] = useState("");
@@ -116,6 +121,33 @@ export default function ExploreScreen() {
       invitees.find((invitee) => invitee.id === selectedGiftContactId) ?? null,
     [invitees, selectedGiftContactId],
   );
+
+  const filteredContacts = useMemo(() => {
+    const q = contactSearch.trim().toLowerCase();
+    const qDigits = q.replace(/\D/g, "");
+
+    const matched = !q
+      ? contacts
+      : contacts.filter((contact) => {
+          const nameMatch = contact.name.toLowerCase().includes(q);
+          const phoneDigits = normalizePhone(contact.phone);
+          const phoneMatch =
+            qDigits.length > 0 && phoneDigits.includes(qDigits);
+          return nameMatch || phoneMatch;
+        });
+
+    if (!q) return matched;
+
+    // Collapse repeated rows representing the same person during search.
+    return Array.from(
+      new Map(
+        matched.map((contact) => {
+          const key = `${contact.name.trim().toLowerCase()}|${normalizePhone(contact.phone)}`;
+          return [key || contact.id, contact] as const;
+        }),
+      ).values(),
+    );
+  }, [contacts, contactSearch]);
 
   const fetchEvents = useCallback(
     async (ownerId: string) => {
@@ -171,7 +203,13 @@ export default function ExploreScreen() {
       return Array.isArray(contactData) ? contactData : [contactData];
     });
 
-    setInvitees(normalized as Contact[]);
+    const deduped = Array.from(
+      new Map(
+        (normalized as Contact[]).map((contact) => [contact.id, contact]),
+      ).values(),
+    );
+
+    setInvitees(deduped);
   }, []);
 
   const fetchGifts = useCallback(async (eventId: string) => {
@@ -291,7 +329,18 @@ export default function ExploreScreen() {
       return;
     }
 
-    if (invitees.some((invitee) => invitee.id === contactId)) {
+    const selectedContact = contacts.find(
+      (contact) => contact.id === contactId,
+    );
+    const selectedPhone = normalizePhone(selectedContact?.phone);
+
+    const alreadyLinked = invitees.some((invitee) => {
+      if (invitee.id === contactId) return true;
+      if (!selectedPhone) return false;
+      return normalizePhone(invitee.phone) === selectedPhone;
+    });
+
+    if (alreadyLinked) {
       Alert.alert("Already added", "This invitee is already linked.");
       return;
     }
@@ -487,12 +536,24 @@ export default function ExploreScreen() {
               : "Select an event to add invitees."}
           </Text>
 
+          <TextInput
+            style={styles.input}
+            value={contactSearch}
+            onChangeText={setContactSearch}
+            placeholder="Search contacts by name or phone"
+            placeholderTextColor="#6b7280"
+          />
+
           <FlatList
-            data={contacts}
+            data={filteredContacts}
             keyExtractor={(item) => item.id}
             scrollEnabled={false}
             ListEmptyComponent={
-              <Text style={styles.emptyText}>No contacts available.</Text>
+              <Text style={styles.emptyText}>
+                {contactSearch.trim()
+                  ? "No contacts match your search."
+                  : "No contacts available."}
+              </Text>
             }
             renderItem={({ item }) => (
               <View style={styles.contactRow}>
