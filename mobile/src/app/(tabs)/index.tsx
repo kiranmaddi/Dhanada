@@ -29,14 +29,34 @@ export default function HomeScreen() {
   const [loading, setLoading] = useState(true);
   const [savingPhone, setSavingPhone] = useState(false);
   const [addingContact, setAddingContact] = useState(false);
+  const [updatingContact, setUpdatingContact] = useState(false);
+  const [deletingContact, setDeletingContact] = useState(false);
   const [userId, setUserId] = useState<string | null>(null);
   const [email, setEmail] = useState<string>("");
   const [phoneNumber, setPhoneNumber] = useState("");
   const [contactName, setContactName] = useState("");
   const [contactPhone, setContactPhone] = useState("");
   const [contacts, setContacts] = useState<Contact[]>([]);
+  const [editingContactId, setEditingContactId] = useState<string | null>(null);
 
   const isReady = useMemo(() => Boolean(userId), [userId]);
+
+  const editingContact = useMemo(
+    () => contacts.find((c) => c.id === editingContactId) ?? null,
+    [contacts, editingContactId],
+  );
+
+  const startEditContact = (contact: Contact) => {
+    setContactName(contact.name);
+    setContactPhone(contact.phone ?? "");
+    setEditingContactId(contact.id);
+  };
+
+  const cancelEditContact = () => {
+    setContactName("");
+    setContactPhone("");
+    setEditingContactId(null);
+  };
 
   const fetchContacts = useCallback(async (ownerId: string) => {
     const { data, error } = await supabase
@@ -134,6 +154,37 @@ export default function HomeScreen() {
       return;
     }
 
+    if (editingContactId) {
+      setUpdatingContact(true);
+      const { error } = await supabase
+        .from("contacts")
+        .update({
+          name: trimmedName,
+          phone: contactPhone.trim() || null,
+        })
+        .eq("id", editingContactId);
+      setUpdatingContact(false);
+
+      if (error) {
+        Alert.alert("Update contact failed", error.message);
+        return;
+      }
+
+      setContacts((cur) =>
+        cur.map((c) =>
+          c.id === editingContactId
+            ? {
+                ...c,
+                name: trimmedName,
+                phone: contactPhone.trim() || null,
+              }
+            : c,
+        ),
+      );
+      cancelEditContact();
+      return;
+    }
+
     setAddingContact(true);
 
     const { error } = await supabase.from("contacts").insert({
@@ -152,6 +203,42 @@ export default function HomeScreen() {
     setContactName("");
     setContactPhone("");
     await fetchContacts(userId);
+  }
+
+  async function onDeleteContact() {
+    if (!editingContactId) {
+      Alert.alert("Select contact", "Choose a contact to delete first.");
+      return;
+    }
+
+    Alert.alert(
+      "Delete Contact",
+      "Delete this contact? This cannot be undone.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Delete",
+          style: "destructive",
+          onPress: async () => {
+            const targetId = editingContactId;
+            setDeletingContact(true);
+            const { error } = await supabase
+              .from("contacts")
+              .delete()
+              .eq("id", targetId);
+            setDeletingContact(false);
+
+            if (error) {
+              Alert.alert("Delete contact failed", error.message);
+              return;
+            }
+
+            setContacts((cur) => cur.filter((c) => c.id !== targetId));
+            cancelEditContact();
+          },
+        },
+      ],
+    );
   }
 
   async function onSignOut() {
@@ -203,7 +290,9 @@ export default function HomeScreen() {
       </View>
 
       <View style={styles.card}>
-        <CollapsibleSection title="Contacts">
+        <CollapsibleSection
+          title={editingContact ? "Edit Contact" : "New Contact"}
+        >
           <TextInput
             style={styles.input}
             value={contactName}
@@ -224,15 +313,52 @@ export default function HomeScreen() {
             maxLength={10}
           />
           <Pressable
-            style={styles.primaryButton}
-            disabled={!isReady || addingContact}
+            style={[
+              styles.primaryButton,
+              (addingContact || updatingContact) && styles.buttonDisabled,
+            ]}
+            disabled={!isReady || addingContact || updatingContact}
             onPress={onAddContact}
           >
             <Text style={styles.primaryButtonText}>
-              {addingContact ? "Adding..." : "Add Contact"}
+              {editingContactId
+                ? updatingContact
+                  ? "Updating..."
+                  : "Update Contact"
+                : addingContact
+                  ? "Adding..."
+                  : "Add Contact"}
             </Text>
           </Pressable>
 
+          {editingContactId && (
+            <>
+              <Pressable
+                style={[
+                  styles.removeButton,
+                  deletingContact && styles.buttonDisabled,
+                ]}
+                disabled={deletingContact}
+                onPress={onDeleteContact}
+              >
+                <Text style={styles.removeButtonText}>
+                  {deletingContact ? "Deleting..." : "Delete Contact"}
+                </Text>
+              </Pressable>
+
+              <Pressable
+                style={styles.secondaryActionButton}
+                onPress={cancelEditContact}
+              >
+                <Text style={styles.secondaryActionButtonText}>Cancel</Text>
+              </Pressable>
+            </>
+          )}
+        </CollapsibleSection>
+      </View>
+
+      <View style={styles.card}>
+        <CollapsibleSection title={`Contacts (${contacts.length})`}>
           <FlatList
             data={contacts}
             keyExtractor={(item) => item.id}
@@ -244,8 +370,18 @@ export default function HomeScreen() {
             }
             renderItem={({ item }) => (
               <View style={styles.listItem}>
-                <Text style={styles.listName}>{item.name}</Text>
-                <Text style={styles.listPhone}>{item.phone || "No phone"}</Text>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.listName}>{item.name}</Text>
+                  <Text style={styles.listPhone}>
+                    {item.phone || "No phone"}
+                  </Text>
+                </View>
+                <Pressable
+                  style={styles.editButton}
+                  onPress={() => startEditContact(item)}
+                >
+                  <Text style={styles.editButtonText}>Edit</Text>
+                </Pressable>
               </View>
             )}
           />
@@ -306,6 +442,7 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     paddingVertical: 10,
   },
+  buttonDisabled: { opacity: 0.6 },
   primaryButtonText: {
     color: "#0a1128",
     textAlign: "center",
@@ -321,6 +458,9 @@ const styles = StyleSheet.create({
     marginVertical: 10,
   },
   listItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
     borderTopWidth: 1,
     borderTopColor: "#233251",
     paddingVertical: 10,
@@ -344,5 +484,40 @@ const styles = StyleSheet.create({
     color: "#c7d2fe",
     textAlign: "center",
     fontWeight: "700",
+  },
+  secondaryActionButton: {
+    backgroundColor: "#0d1732",
+    borderColor: "#2a3b5c",
+    borderWidth: 1,
+    borderRadius: 10,
+    paddingVertical: 10,
+    marginTop: 8,
+  },
+  secondaryActionButtonText: {
+    color: "#9aa5c5",
+    textAlign: "center",
+    fontWeight: "600",
+  },
+  removeButton: {
+    backgroundColor: "#dc2626",
+    borderRadius: 10,
+    paddingVertical: 10,
+    marginTop: 8,
+  },
+  removeButtonText: {
+    color: "#ffffff",
+    textAlign: "center",
+    fontWeight: "700",
+  },
+  editButton: {
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    backgroundColor: "#374151",
+    borderRadius: 6,
+  },
+  editButtonText: {
+    color: "#e5e7eb",
+    fontSize: 12,
+    fontWeight: "600",
   },
 });

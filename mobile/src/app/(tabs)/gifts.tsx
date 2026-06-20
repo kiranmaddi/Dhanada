@@ -272,10 +272,12 @@ export default function GiftsScreen() {
       setInvitees([]);
       setGifts([]);
       setSelectedContactId(null);
+      setEditingGiftId(null);
       return;
     }
 
     setSelectedContactId(null);
+    setEditingGiftId(null);
     void fetchInvitees(selectedEventId);
     void fetchGifts(selectedEventId);
   }, [fetchGifts, fetchInvitees, selectedEventId]);
@@ -443,6 +445,149 @@ export default function GiftsScreen() {
     setGifts((curr) => [inserted as GiftRow, ...curr]);
   }
 
+  async function onUpdateGift() {
+    if (!editingGiftId) {
+      Alert.alert("Select gift", "Choose a gift to edit first.");
+      return;
+    }
+    if (!selectedEventId) {
+      Alert.alert("Select event", "Choose an event first.");
+      return;
+    }
+    if (!selectedContactId) {
+      Alert.alert("Select invitee", "Choose an invitee to link the gift.");
+      return;
+    }
+    if (giftType === "cash" && !giftAmountInput.trim()) {
+      Alert.alert("Validation", "Amount is required for Cash gifts.");
+      return;
+    }
+
+    if (giftType === "gift" && !giftNameInput.trim()) {
+      Alert.alert("Validation", "Gift name is required for Gift Article.");
+      return;
+    }
+
+    const trimmedAmount = giftAmountInput.trim();
+    const parsedAmount = trimmedAmount ? Number(trimmedAmount) : null;
+    if (trimmedAmount && !Number.isFinite(parsedAmount)) {
+      Alert.alert("Validation", "Amount must be a number.");
+      return;
+    }
+
+    setUpdating(true);
+
+    await linkInviteeIfMissing(selectedEventId, selectedContactId);
+
+    const base = {
+      contact_id: selectedContactId,
+      gift_type: giftType,
+    };
+
+    const itemDesc =
+      giftType === "gift"
+        ? giftNameInput.trim() || "Gift"
+        : giftNotesInput.trim() || null;
+
+    const payloads = [
+      {
+        ...base,
+        value_amount: giftType === "cash" ? parsedAmount : null,
+        item_description: itemDesc,
+      },
+    ];
+
+    let updated: GiftRow | null = null;
+    let lastError: { code?: string; message?: string } | null = null;
+
+    for (const payload of payloads) {
+      const { data, error } = await supabase
+        .from("gifts")
+        .update(payload)
+        .eq("id", editingGiftId)
+        .select("*, contacts(id,name,phone)")
+        .single();
+
+      if (!error) {
+        updated = data as GiftRow;
+        break;
+      }
+
+      lastError = { code: error.code, message: error.message };
+      if (error.code === "42501") break;
+
+      const lower = error.message?.toLowerCase() ?? "";
+      if (
+        !(
+          error.code === "42703" ||
+          error.code === "PGRST204" ||
+          lower.includes("column") ||
+          lower.includes("schema cache")
+        )
+      ) {
+        break;
+      }
+    }
+
+    setUpdating(false);
+
+    if (!updated) {
+      const msg =
+        lastError?.code === "42501"
+          ? "Permission denied — check RLS policy for gifts."
+          : (lastError?.message ?? "Unable to update gift.");
+      Alert.alert("Update failed", msg);
+      return;
+    }
+
+    const targetId = editingGiftId;
+    setGiftNameInput("");
+    setGiftAmountInput("");
+    setGiftNotesInput("");
+    setGiftType("cash");
+    setEditingGiftId(null);
+    setGifts((curr) =>
+      curr.map((gift) => (gift.id === targetId ? updated! : gift)),
+    );
+  }
+
+  async function onDeleteGift() {
+    if (!editingGiftId) {
+      Alert.alert("Select gift", "Choose a gift to delete first.");
+      return;
+    }
+
+    Alert.alert("Delete Gift", "Delete this gift? This cannot be undone.", [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: "Delete",
+        style: "destructive",
+        onPress: async () => {
+          const targetId = editingGiftId;
+          setDeleting(true);
+          const { error } = await supabase
+            .from("gifts")
+            .delete()
+            .eq("id", targetId);
+          setDeleting(false);
+
+          if (error) {
+            Alert.alert("Delete failed", error.message);
+            return;
+          }
+
+          setGifts((curr) => curr.filter((gift) => gift.id !== targetId));
+          setGiftNameInput("");
+          setGiftAmountInput("");
+          setGiftNotesInput("");
+          setGiftType("cash");
+          setEditingGiftId(null);
+          setSelectedContactId(null);
+        },
+      },
+    ]);
+  }
+
   if (loading) {
     return (
       <SafeAreaView style={styles.screen}>
@@ -506,7 +651,7 @@ export default function GiftsScreen() {
         {selectedEvent && (
           <View style={styles.card}>
             <CollapsibleSection
-              title={`Add Gift — ${selectedEvent.event_name}`}
+              title={`${editingGift ? "Edit Gift" : "Add Gift"} — ${selectedEvent.event_name}`}
             >
               {contacts.length === 0 ? (
                 <Text style={styles.emptyText}>
@@ -672,15 +817,45 @@ export default function GiftsScreen() {
                   <Pressable
                     style={[
                       styles.primaryButton,
-                      creating && styles.buttonDisabled,
+                      (creating || updating) && styles.buttonDisabled,
                     ]}
-                    disabled={creating}
-                    onPress={onCreateGift}
+                    disabled={creating || updating}
+                    onPress={editingGiftId ? onUpdateGift : onCreateGift}
                   >
                     <Text style={styles.primaryButtonText}>
-                      {creating ? "Adding..." : "Add Gift"}
+                      {editingGiftId
+                        ? updating
+                          ? "Updating..."
+                          : "Update Gift"
+                        : creating
+                          ? "Adding..."
+                          : "Add Gift"}
                     </Text>
                   </Pressable>
+
+                  {editingGiftId && (
+                    <>
+                      <Pressable
+                        style={[
+                          styles.removeButton,
+                          deleting && styles.buttonDisabled,
+                        ]}
+                        disabled={deleting}
+                        onPress={onDeleteGift}
+                      >
+                        <Text style={styles.removeButtonText}>
+                          {deleting ? "Deleting..." : "Delete Gift"}
+                        </Text>
+                      </Pressable>
+
+                      <Pressable
+                        style={styles.secondaryButton}
+                        onPress={cancelEditGift}
+                      >
+                        <Text style={styles.secondaryButtonText}>Cancel</Text>
+                      </Pressable>
+                    </>
+                  )}
                 </>
               )}
             </CollapsibleSection>
@@ -719,6 +894,12 @@ export default function GiftsScreen() {
                             <Text style={styles.giftNotes}>{notes}</Text>
                           )}
                         </View>
+                        <Pressable
+                          style={styles.editButton}
+                          onPress={() => startEditGift(item)}
+                        >
+                          <Text style={styles.editButtonText}>Edit</Text>
+                        </Pressable>
                       </View>
                     );
                   }}
@@ -819,10 +1000,48 @@ const styles = StyleSheet.create({
     color: "#0a1128",
     fontWeight: "800",
   },
+  secondaryButton: {
+    backgroundColor: "#0d1732",
+    borderColor: "#2a3b5c",
+    borderWidth: 1,
+    borderRadius: 10,
+    paddingVertical: 12,
+    marginTop: 8,
+  },
+  secondaryButtonText: {
+    textAlign: "center",
+    color: "#9aa5c5",
+    fontWeight: "600",
+  },
+  removeButton: {
+    backgroundColor: "#dc2626",
+    borderRadius: 10,
+    paddingVertical: 12,
+    marginTop: 8,
+  },
+  removeButtonText: {
+    textAlign: "center",
+    color: "#ffffff",
+    fontWeight: "700",
+  },
   giftRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
     paddingVertical: 10,
     borderBottomWidth: 1,
     borderColor: "#1a2c54",
+  },
+  editButton: {
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    backgroundColor: "#374151",
+    borderRadius: 6,
+  },
+  editButtonText: {
+    color: "#e5e7eb",
+    fontSize: 12,
+    fontWeight: "600",
   },
   giftName: { color: "#ffffff", fontWeight: "700" },
   giftMeta: { color: "#9aa5c5", fontSize: 12, marginTop: 2 },

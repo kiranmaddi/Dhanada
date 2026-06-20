@@ -229,29 +229,34 @@ export default function EventsScreen() {
   }
 
   async function onDelete() {
-    if (
-      !editingId ||
-      !alert(
-        "Delete this event? (You must confirm in the next dialog). Tap OK to confirm deletion.",
-      )
-    ) {
+    if (!editingId) {
       return;
     }
 
-    setDeleting(true);
-    const { error } = await supabase
-      .from("events")
-      .delete()
-      .eq("id", editingId);
-    setDeleting(false);
+    Alert.alert("Delete Event", "Delete this event? This cannot be undone.", [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: "Delete",
+        style: "destructive",
+        onPress: async () => {
+          const targetId = editingId;
+          setDeleting(true);
+          const { error } = await supabase
+            .from("events")
+            .delete()
+            .eq("id", targetId);
+          setDeleting(false);
 
-    if (error) {
-      Alert.alert("Delete failed", error.message);
-      return;
-    }
+          if (error) {
+            Alert.alert("Delete failed", error.message);
+            return;
+          }
 
-    setEvents((cur) => cur.filter((ev) => ev.id !== editingId));
-    cancelEdit();
+          setEvents((cur) => cur.filter((ev) => ev.id !== targetId));
+          cancelEdit();
+        },
+      },
+    ]);
   }
 
   if (loading) {
@@ -269,7 +274,7 @@ export default function EventsScreen() {
 
         {/* ── Create/Edit Event Form ── */}
         <View style={styles.card}>
-          <CollapsibleSection title={editingId ? "Edit Event" : "New Event"}>
+          <CollapsibleSection title={editingEvent ? "Edit Event" : "New Event"}>
             <TextInput
               style={styles.input}
               value={eventName}
@@ -557,7 +562,11 @@ const styles = StyleSheet.create({
     borderColor: "#2a3b5c",
     marginBottom: 8,
   },
-  eventHeader: { gap: 4 },
+  eventHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
   eventName: { color: "#ffffff", fontWeight: "700" },
   badgeRow: { flexDirection: "row", gap: 6, flexWrap: "wrap", marginTop: 2 },
   dateBadge: {
@@ -580,9 +589,9 @@ const styles = StyleSheet.create({
   detailText: { color: "#9aa5c5", fontSize: 13 },
   editButton: {
     paddingHorizontal: 12,
-    paddingVertical: 6,
+    paddingVertical: 7,
     backgroundColor: "#374151",
-    borderRadius: 4,
+    borderRadius: 6,
   },
   editButtonText: {
     color: "#e5e7eb",
