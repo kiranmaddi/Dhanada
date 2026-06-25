@@ -1,18 +1,25 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase-browser";
 
 export default function SignUpPage() {
   const router = useRouter();
+  const [inviteToken, setInviteToken] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [fullName, setFullName] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    setInviteToken(params.get("invite") || "");
+  }, []);
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -41,7 +48,9 @@ export default function SignUpPage() {
 
     setLoading(false);
     setMessage("Check your email to confirm your account.");
-    router.push("/dashboard");
+    router.push(
+      inviteToken ? `/invite/${encodeURIComponent(inviteToken)}` : "/dashboard",
+    );
     router.refresh();
   }
 
@@ -95,7 +104,14 @@ export default function SignUpPage() {
       </div>
 
       <div style={{ textAlign: "center", marginTop: 16 }}>
-        <Link href="/auth/sign-in" className="link">
+        <Link
+          href={
+            inviteToken
+              ? `/auth/sign-in?invite=${encodeURIComponent(inviteToken)}`
+              : "/auth/sign-in"
+          }
+          className="link"
+        >
           Already have an account? Sign in
         </Link>
       </div>

@@ -1,16 +1,23 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase-browser";
 
 export default function SignInPage() {
   const router = useRouter();
+  const [inviteToken, setInviteToken] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    setInviteToken(params.get("invite") || "");
+  }, []);
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -30,7 +37,9 @@ export default function SignInPage() {
       return;
     }
 
-    router.push("/dashboard");
+    router.push(
+      inviteToken ? `/invite/${encodeURIComponent(inviteToken)}` : "/dashboard",
+    );
     router.refresh();
   }
 
@@ -76,6 +85,14 @@ export default function SignInPage() {
         <Link href="/auth/sign-up" className="link">
           Don&apos;t have an account? Sign up
         </Link>
+        {inviteToken && (
+          <Link
+            href={`/auth/sign-up?invite=${encodeURIComponent(inviteToken)}`}
+            className="link"
+          >
+            Continue invite flow with sign up
+          </Link>
+        )}
         <Link href="/auth/forgot-password" className="link">
           Forgot password?
         </Link>

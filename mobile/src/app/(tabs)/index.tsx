@@ -4,6 +4,7 @@ import {
   Alert,
   FlatList,
   Pressable,
+  Share,
   StyleSheet,
   Text,
   TextInput,
@@ -20,9 +21,27 @@ type Contact = {
   phone: string | null;
 };
 
+type MatchCandidate = {
+  contact_id: string;
+  contact_name: string;
+  contact_phone: string | null;
+  matched_user_id: string;
+};
+
 function isValidOptionalPhone(value: string) {
   const digits = value.replace(/\D/g, "");
   return digits.length === 0 || digits.length === 10;
+}
+
+function hasValidPhone(value: string | null | undefined) {
+  if (!value) return false;
+  return value.replace(/\D/g, "").length === 10;
+}
+
+function generateInviteToken() {
+  const rand = Math.random().toString(36).slice(2);
+  const rand2 = Math.random().toString(36).slice(2);
+  return `${Date.now().toString(36)}${rand}${rand2}`;
 }
 
 export default function HomeScreen() {
@@ -34,9 +53,15 @@ export default function HomeScreen() {
   const [userId, setUserId] = useState<string | null>(null);
   const [email, setEmail] = useState<string>("");
   const [phoneNumber, setPhoneNumber] = useState("");
+  const [phoneVerifiedAt, setPhoneVerifiedAt] = useState<string | null>(null);
   const [contactName, setContactName] = useState("");
   const [contactPhone, setContactPhone] = useState("");
   const [contacts, setContacts] = useState<Contact[]>([]);
+  const [matchCandidates, setMatchCandidates] = useState<MatchCandidate[]>([]);
+  const [loadingMatches, setLoadingMatches] = useState(false);
+  const [connectingContactId, setConnectingContactId] = useState<string | null>(
+    null,
+  );
   const [editingContactId, setEditingContactId] = useState<string | null>(null);
 
   const isReady = useMemo(() => Boolean(userId), [userId]);
@@ -44,6 +69,14 @@ export default function HomeScreen() {
   const editingContact = useMemo(
     () => contacts.find((c) => c.id === editingContactId) ?? null,
     [contacts, editingContactId],
+  );
+
+  const candidateByContactId = useMemo(
+    () =>
+      new Map(
+        matchCandidates.map((candidate) => [candidate.contact_id, candidate]),
+      ),
+    [matchCandidates],
   );
 
   const startEditContact = (contact: Contact) => {
@@ -73,6 +106,21 @@ export default function HomeScreen() {
     setContacts((data ?? []) as Contact[]);
   }, []);
 
+  const fetchMatchCandidates = useCallback(async () => {
+    setLoadingMatches(true);
+    const { data, error } = await supabase.rpc("get_contact_match_candidates", {
+      max_rows: 25,
+    });
+    setLoadingMatches(false);
+
+    if (error) {
+      console.warn("Match candidates error", error.message);
+      return;
+    }
+
+    setMatchCandidates((data ?? []) as MatchCandidate[]);
+  }, []);
+
   useEffect(() => {
     let mounted = true;
 
@@ -92,22 +140,24 @@ export default function HomeScreen() {
 
       const { data: profile } = await supabase
         .from("profiles")
-        .select("phone_number")
+        .select("phone_number,phone_verified_at")
         .eq("id", uid)
         .single();
 
       if (profile?.phone_number) {
         setPhoneNumber(profile.phone_number);
       }
+      setPhoneVerifiedAt(profile?.phone_verified_at ?? null);
 
       await fetchContacts(uid);
+      await fetchMatchCandidates();
       setLoading(false);
     })();
 
     return () => {
       mounted = false;
     };
-  }, [fetchContacts]);
+  }, [fetchContacts, fetchMatchCandidates]);
 
   async function onSavePhone() {
     if (!userId) return;
@@ -133,6 +183,9 @@ export default function HomeScreen() {
       Alert.alert("Profile update failed", error.message);
       return;
     }
+
+    setPhoneVerifiedAt(null);
+    await fetchMatchCandidates();
 
     Alert.alert("Saved", "Phone number updated.");
   }
@@ -182,6 +235,7 @@ export default function HomeScreen() {
         ),
       );
       cancelEditContact();
+      await fetchMatchCandidates();
       return;
     }
 
@@ -203,6 +257,7 @@ export default function HomeScreen() {
     setContactName("");
     setContactPhone("");
     await fetchContacts(userId);
+    await fetchMatchCandidates();
   }
 
   async function onDeleteContact() {
@@ -235,10 +290,118 @@ export default function HomeScreen() {
 
             setContacts((cur) => cur.filter((c) => c.id !== targetId));
             cancelEditContact();
+            await fetchMatchCandidates();
           },
         },
       ],
     );
+  }
+
+  async function onConnectCandidate(candidate: MatchCandidate) {
+    if (!userId) return;
+
+    setConnectingContactId(candidate.contact_id);
+
+    const { error: linkError } = await supabase
+      .from("contact_user_links")
+      .upsert(
+        {
+          owner_user_id: userId,
+          contact_id: candidate.contact_id,
+          linked_user_id: candidate.matched_user_id,
+          linked_via: "manual",
+          verified_at: new Date().toISOString(),
+        },
+        { onConflict: "owner_user_id,contact_id" },
+      );
+
+    if (linkError) {
+      setConnectingContactId(null);
+      Alert.alert("Connect failed", linkError.message);
+      return;
+    }
+
+    const { data: existing, error: existingError } = await supabase
+      .from("user_connections")
+      .select("id")
+      .or(
+        `and(requester_user_id.eq.${userId},addressee_user_id.eq.${candidate.matched_user_id}),and(requester_user_id.eq.${candidate.matched_user_id},addressee_user_id.eq.${userId})`,
+      )
+      .limit(1);
+
+    if (!existingError && (!existing || existing.length === 0)) {
+      await supabase.from("user_connections").insert({
+        requester_user_id: userId,
+        addressee_user_id: candidate.matched_user_id,
+        status: "pending",
+      });
+    }
+
+    setConnectingContactId(null);
+    setMatchCandidates((cur) =>
+      cur.filter((row) => row.contact_id !== candidate.contact_id),
+    );
+  }
+
+  async function onInviteContact(contact: Contact) {
+    if (!hasValidPhone(contact.phone)) {
+      Alert.alert("Add phone", "This contact needs a valid phone number.");
+      return;
+    }
+
+    if (!userId) return;
+
+    setConnectingContactId(contact.id);
+
+    let inviteToken: string | null = null;
+
+    const { data, error } = await supabase.rpc("create_invite_for_contact", {
+      p_contact_id: contact.id,
+      p_expires_in_hours: 168,
+    });
+
+    if (!error) {
+      const row = ((data ?? []) as { token: string }[])[0];
+      inviteToken = row?.token ?? null;
+    }
+
+    if (!inviteToken) {
+      const fallbackToken = generateInviteToken();
+      const expiresAt = new Date(
+        Date.now() + 168 * 60 * 60 * 1000,
+      ).toISOString();
+
+      const { error: fallbackError } = await supabase
+        .from("app_invites")
+        .insert({
+          inviter_user_id: userId,
+          target_contact_id: contact.id,
+          token: fallbackToken,
+          status: "sent",
+          expires_at: expiresAt,
+        });
+
+      if (fallbackError) {
+        setConnectingContactId(null);
+        Alert.alert(
+          "Invite failed",
+          error?.message || fallbackError.message || "Unable to create invite.",
+        );
+        return;
+      }
+
+      inviteToken = fallbackToken;
+    }
+
+    setConnectingContactId(null);
+
+    const baseUrl =
+      process.env.EXPO_PUBLIC_WEB_URL?.replace(/\/$/, "") ||
+      "https://dhanada.app";
+    const signupUrl = `${baseUrl}/auth/sign-up?invite=${encodeURIComponent(inviteToken)}`;
+    const message = `Join me on Dhanada, ${contact.name}! Sign up here: ${signupUrl}`;
+
+    await Share.share({ message });
   }
 
   async function onSignOut() {
@@ -286,6 +449,13 @@ export default function HomeScreen() {
               {savingPhone ? "Saving..." : "Save Phone"}
             </Text>
           </Pressable>
+          <Text style={styles.statusHelper}>
+            {phoneVerifiedAt
+              ? `Phone verified on ${new Date(phoneVerifiedAt).toLocaleDateString()}.`
+              : phoneNumber.trim()
+                ? "Phone not verified yet. Contact matching will use only verified phones."
+                : "Add your phone number to enable contact match suggestions."}
+          </Text>
         </CollapsibleSection>
       </View>
 
@@ -365,7 +535,7 @@ export default function HomeScreen() {
             style={styles.list}
             ListEmptyComponent={
               <Text style={styles.emptyText}>
-                No contacts yet. Add your first invitee.
+                No contacts yet. Add your first contact.
               </Text>
             }
             renderItem={({ item }) => (
@@ -376,15 +546,76 @@ export default function HomeScreen() {
                     {item.phone || "No phone"}
                   </Text>
                 </View>
-                <Pressable
-                  style={styles.editButton}
-                  onPress={() => startEditContact(item)}
-                >
-                  <Text style={styles.editButtonText}>Edit</Text>
-                </Pressable>
+                <View style={styles.rowActions}>
+                  {hasValidPhone(item.phone) && (
+                    <Pressable
+                      style={styles.editButton}
+                      onPress={() => {
+                        const candidate = candidateByContactId.get(item.id);
+                        if (candidate) {
+                          void onConnectCandidate(candidate);
+                        } else {
+                          void onInviteContact(item);
+                        }
+                      }}
+                      disabled={connectingContactId === item.id}
+                    >
+                      <Text style={styles.editButtonText}>
+                        {connectingContactId === item.id
+                          ? "Connecting..."
+                          : "Connect"}
+                      </Text>
+                    </Pressable>
+                  )}
+                  <Pressable
+                    style={styles.editButton}
+                    onPress={() => startEditContact(item)}
+                  >
+                    <Text style={styles.editButtonText}>Edit</Text>
+                  </Pressable>
+                </View>
               </View>
             )}
           />
+        </CollapsibleSection>
+      </View>
+
+      <View style={styles.card}>
+        <CollapsibleSection title="People You May Know on Dhanada">
+          {loadingMatches ? (
+            <Text style={styles.emptyText}>Finding matches...</Text>
+          ) : matchCandidates.length === 0 ? (
+            <Text style={styles.emptyText}>
+              No match suggestions right now.
+            </Text>
+          ) : (
+            <FlatList
+              data={matchCandidates}
+              keyExtractor={(item) => item.contact_id}
+              style={styles.list}
+              renderItem={({ item }) => (
+                <View style={styles.listItem}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.listName}>{item.contact_name}</Text>
+                    <Text style={styles.listPhone}>
+                      {item.contact_phone || "No phone"}
+                    </Text>
+                  </View>
+                  <Pressable
+                    style={styles.editButton}
+                    onPress={() => void onConnectCandidate(item)}
+                    disabled={connectingContactId === item.contact_id}
+                  >
+                    <Text style={styles.editButtonText}>
+                      {connectingContactId === item.contact_id
+                        ? "Connecting..."
+                        : "Connect"}
+                    </Text>
+                  </Pressable>
+                </View>
+              )}
+            />
+          )}
         </CollapsibleSection>
       </View>
 
@@ -437,6 +668,12 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     color: "#ffffff",
   },
+  statusHelper: {
+    color: "#9aa5c5",
+    fontSize: 12,
+    marginTop: 6,
+    lineHeight: 18,
+  },
   primaryButton: {
     backgroundColor: "#00d2ff",
     borderRadius: 10,
@@ -464,6 +701,11 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: "#233251",
     paddingVertical: 10,
+  },
+  rowActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
   },
   listName: {
     color: "#ffffff",

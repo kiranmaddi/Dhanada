@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
+import { createClient } from "@/lib/supabase-browser";
 
 const NAV_ITEMS = [
   { href: "/dashboard", label: "Contacts" },
@@ -12,7 +13,9 @@ const NAV_ITEMS = [
 ];
 
 export default function DashboardNav({ displayName }: { displayName: string }) {
+  const supabase = createClient();
   const pathname = usePathname();
+  const router = useRouter();
 
   function isActive(href: string) {
     if (href === "/dashboard") return pathname === "/dashboard";
@@ -20,7 +23,15 @@ export default function DashboardNav({ displayName }: { displayName: string }) {
   }
 
   async function handleSignOut() {
-    window.location.href = "/auth/sign-out";
+    const { error } = await supabase.auth.signOut();
+    if (error) {
+      // Route-handler fallback if client sign out fails for any reason.
+      window.location.href = "/auth/sign-out";
+      return;
+    }
+
+    router.replace("/auth/sign-in");
+    router.refresh();
   }
 
   return (
