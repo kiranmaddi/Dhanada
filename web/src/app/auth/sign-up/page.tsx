@@ -54,6 +54,25 @@ export default function SignUpPage() {
     router.refresh();
   }
 
+  async function onGoogleSignUp() {
+    setError("");
+
+    const supabase = createClient();
+    const nextPath = inviteToken
+      ? `/invite/${encodeURIComponent(inviteToken)}`
+      : "/dashboard";
+    const redirectTo = `${window.location.origin}/auth/callback?next=${encodeURIComponent(nextPath)}`;
+
+    const { error: oauthError } = await supabase.auth.signInWithOAuth({
+      provider: "google",
+      options: { redirectTo },
+    });
+
+    if (oauthError) {
+      setError(oauthError.message);
+    }
+  }
+
   return (
     <div className="page">
       <div className="logo">Dhanada</div>
@@ -99,6 +118,15 @@ export default function SignUpPage() {
           />
           <button className="btn-primary" type="submit" disabled={loading}>
             {loading ? "Creating account..." : "Create Account"}
+          </button>
+          <button
+            className="btn-secondary"
+            type="button"
+            onClick={onGoogleSignUp}
+            disabled={loading}
+            style={{ width: "100%", marginTop: 8 }}
+          >
+            Continue with Google
           </button>
         </form>
       </div>

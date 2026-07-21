@@ -36,7 +36,7 @@ export default function RootLayout() {
   useEffect(() => {
     let mounted = true;
 
-    async function handleRecoveryUrl(url: string) {
+    async function handleAuthUrl(url: string) {
       const parsedUrl = new URL(url);
       const queryParams = new URLSearchParams(parsedUrl.search);
       const hashText = parsedUrl.hash.startsWith("#")
@@ -54,15 +54,20 @@ export default function RootLayout() {
       const isRecoveryLink =
         type === "recovery" || url.toLowerCase().includes("reset-password");
 
-      if (!isRecoveryLink) {
-        return;
-      }
-
+      // OAuth providers (like Google) return an authorization code via deep link.
       if (code) {
         const { error } = await supabase.auth.exchangeCodeForSession(code);
         if (!error && mounted) {
-          router.replace("/(auth)/reset-password" as any);
+          if (isRecoveryLink) {
+            router.replace("/(auth)/reset-password" as any);
+          } else {
+            router.replace("/(tabs)");
+          }
         }
+        return;
+      }
+
+      if (!isRecoveryLink) {
         return;
       }
 
@@ -90,12 +95,12 @@ export default function RootLayout() {
 
     Linking.getInitialURL().then((url) => {
       if (url) {
-        void handleRecoveryUrl(url);
+        void handleAuthUrl(url);
       }
     });
 
     const subscription = Linking.addEventListener("url", ({ url }) => {
-      void handleRecoveryUrl(url);
+      void handleAuthUrl(url);
     });
 
     return () => {

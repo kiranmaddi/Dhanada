@@ -43,6 +43,25 @@ export default function SignInPage() {
     router.refresh();
   }
 
+  async function onGoogleSignIn() {
+    setError("");
+
+    const supabase = createClient();
+    const nextPath = inviteToken
+      ? `/invite/${encodeURIComponent(inviteToken)}`
+      : "/dashboard";
+    const redirectTo = `${window.location.origin}/auth/callback?next=${encodeURIComponent(nextPath)}`;
+
+    const { error: oauthError } = await supabase.auth.signInWithOAuth({
+      provider: "google",
+      options: { redirectTo },
+    });
+
+    if (oauthError) {
+      setError(oauthError.message);
+    }
+  }
+
   return (
     <div className="page">
       <div className="logo">Dhanada</div>
@@ -69,6 +88,15 @@ export default function SignInPage() {
           />
           <button className="btn-primary" type="submit" disabled={loading}>
             {loading ? "Signing in..." : "Sign In"}
+          </button>
+          <button
+            className="btn-secondary"
+            type="button"
+            onClick={onGoogleSignIn}
+            disabled={loading}
+            style={{ width: "100%", marginTop: 8 }}
+          >
+            Continue with Google
           </button>
         </form>
       </div>

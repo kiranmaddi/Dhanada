@@ -10,8 +10,12 @@ import {
   View,
 } from "react-native";
 import { Link, useRouter } from "expo-router";
+import * as Linking from "expo-linking";
+import * as WebBrowser from "expo-web-browser";
 
 import { supabase } from "../../lib/supabase";
+
+WebBrowser.maybeCompleteAuthSession();
 
 export default function SignUpScreen() {
   const router = useRouter();
@@ -19,6 +23,7 @@ export default function SignUpScreen() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(false);
 
   async function onSignUp() {
     if (!email || !password) {
@@ -52,6 +57,58 @@ export default function SignUpScreen() {
       "Check your email if confirmation is enabled.",
     );
     router.replace("/(auth)/sign-in" as any);
+  }
+
+  async function onGoogleSignUp() {
+    setGoogleLoading(true);
+
+    const redirectTo = Linking.createURL("/auth/callback");
+    const { data, error } = await supabase.auth.signInWithOAuth({
+      provider: "google",
+      options: {
+        redirectTo,
+        skipBrowserRedirect: true,
+      },
+    });
+
+    if (error || !data?.url) {
+      setGoogleLoading(false);
+      Alert.alert(
+        "Google sign up failed",
+        error?.message || "Unable to start OAuth flow.",
+      );
+      return;
+    }
+
+    const result = await WebBrowser.openAuthSessionAsync(data.url, redirectTo);
+
+    if (result.type !== "success" || !result.url) {
+      setGoogleLoading(false);
+      return;
+    }
+
+    const callbackUrl = new URL(result.url);
+    const code = callbackUrl.searchParams.get("code");
+
+    if (!code) {
+      setGoogleLoading(false);
+      Alert.alert(
+        "Google sign up failed",
+        "Missing authorization code in callback.",
+      );
+      return;
+    }
+
+    const { error: exchangeError } =
+      await supabase.auth.exchangeCodeForSession(code);
+    setGoogleLoading(false);
+
+    if (exchangeError) {
+      Alert.alert("Google sign up failed", exchangeError.message);
+      return;
+    }
+
+    router.replace("/(tabs)");
   }
 
   return (
@@ -91,6 +148,16 @@ export default function SignUpScreen() {
         <Pressable style={styles.button} onPress={onSignUp} disabled={loading}>
           <Text style={styles.buttonText}>
             {loading ? "Creating..." : "Sign Up"}
+          </Text>
+        </Pressable>
+
+        <Pressable
+          style={styles.secondaryButton}
+          onPress={onGoogleSignUp}
+          disabled={googleLoading}
+        >
+          <Text style={styles.secondaryButtonText}>
+            {googleLoading ? "Opening Google..." : "Continue with Google"}
           </Text>
         </Pressable>
 
@@ -152,6 +219,19 @@ const styles = StyleSheet.create({
     textAlign: "center",
     color: "#0a1128",
     fontWeight: "800",
+  },
+  secondaryButton: {
+    backgroundColor: "#0d1732",
+    borderColor: "#2a3b5c",
+    borderWidth: 1,
+    borderRadius: 10,
+    paddingVertical: 12,
+    marginTop: 8,
+  },
+  secondaryButtonText: {
+    textAlign: "center",
+    color: "#9aa5c5",
+    fontWeight: "700",
   },
   footer: {
     marginTop: 10,
