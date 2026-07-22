@@ -133,7 +133,6 @@ export default function HomeScreen() {
   };
 
   const fetchContacts = useCallback(async (ownerId: string) => {
-    console.log("[FETCH_CONTACTS] Starting fetch for owner:", ownerId);
     const { data, error } = await supabase
       .from("contacts")
       .select("id,name,phone")
@@ -141,46 +140,31 @@ export default function HomeScreen() {
       .order("created_at", { ascending: false });
 
     if (error) {
-      console.error("[FETCH_CONTACTS] Error:", error);
       Alert.alert("Contacts error", error.message);
       return;
     }
 
-    console.log("[FETCH_CONTACTS] Found contacts:", data?.length ?? 0, data);
     setContacts((data ?? []) as Contact[]);
   }, []);
 
   const fetchMatchCandidates = useCallback(async () => {
-    console.log("[FETCH_MATCH_CANDIDATES] Starting fetch");
     const { data, error } = await supabase.rpc("get_contact_match_candidates", {
       max_rows: 25,
     });
 
     if (error) {
-      console.error("[FETCH_MATCH_CANDIDATES] Error:", error);
-      console.warn("Match candidates error", error.message);
       return;
     }
 
-    console.log(
-      "[FETCH_MATCH_CANDIDATES] Found candidates:",
-      data?.length ?? 0,
-      data,
-    );
     setMatchCandidates((data ?? []) as MatchCandidate[]);
   }, []);
 
   const fetchContactsWithWishlists = useCallback(async () => {
-    console.log("[FETCH_CONTACTS_WITH_WISHLISTS] Starting fetch");
     const { data, error } = await supabase.rpc("get_contacts_on_app");
 
     if (error) {
-      console.error("[FETCH_CONTACTS_WITH_WISHLISTS] Error:", error);
-      console.warn("Contacts error", error.message);
       return;
     }
-
-    console.log("[FETCH_CONTACTS_WITH_WISHLISTS] Raw data received:", data);
     // Transform to unified contacts format
     const unified: UnifiedContact[] = (data ?? []).map((contact: any) => ({
       contact_id: contact.contact_id,
@@ -191,20 +175,11 @@ export default function HomeScreen() {
       is_linked: true,
     }));
 
-    console.log(
-      "[FETCH_CONTACTS_WITH_WISHLISTS] Unified contacts:",
-      unified.length,
-      unified,
-    );
     setAllContacts(unified);
   }, []);
 
   const fetchSharedWishlistsFromContact = useCallback(
     async (contactUserId: string) => {
-      console.log(
-        "[FETCH_SHARED_WISHLISTS] Starting fetch for contact user:",
-        contactUserId,
-      );
       setLoadingContactWishlists(true);
       const { data, error } = await supabase.rpc(
         "get_shared_wishlists_from_contact",
@@ -213,17 +188,10 @@ export default function HomeScreen() {
       setLoadingContactWishlists(false);
 
       if (error) {
-        console.error("[FETCH_SHARED_WISHLISTS] Error:", error);
-        console.warn("Shared wishlists from contact error", error.message);
         Alert.alert("Error", "Failed to load wishlists");
         return;
       }
 
-      console.log(
-        "[FETCH_SHARED_WISHLISTS] Found wishlists:",
-        data?.length ?? 0,
-        data,
-      );
       setSharedWishlistsFromContact(
         (data ?? []) as SharedWishlistFromContact[],
       );
@@ -232,10 +200,6 @@ export default function HomeScreen() {
   );
 
   const fetchContactInvitedEvents = useCallback(async (contactId: string) => {
-    console.log(
-      "[FETCH_CONTACT_EVENTS] Starting fetch for contact:",
-      contactId,
-    );
     setLoadingContactEvents(true);
     const { data, error } = await supabase.rpc("get_contact_invited_events", {
       p_contact_user_id: contactId,
@@ -243,16 +207,9 @@ export default function HomeScreen() {
     setLoadingContactEvents(false);
 
     if (error) {
-      console.error("[FETCH_CONTACT_EVENTS] Error:", error);
-      console.warn("Contact invited events error", error.message);
       return;
     }
 
-    console.log(
-      "[FETCH_CONTACT_EVENTS] Found events:",
-      data?.length ?? 0,
-      data,
-    );
     setContactInvitedEvents((data ?? []) as ContactInvitedEvent[]);
   }, []);
 
@@ -260,39 +217,32 @@ export default function HomeScreen() {
     let mounted = true;
 
     (async () => {
-      console.log("[CONTACTS_PAGE] Initializing...");
       const {
         data: { session },
       } = await supabase.auth.getSession();
 
       if (!mounted || !session?.user) {
-        console.log("[CONTACTS_PAGE] No session, skipping load");
         setLoading(false);
         return;
       }
 
       const uid = session.user.id;
-      console.log("[CONTACTS_PAGE] User session found:", uid);
       setUserId(uid);
       setEmail(session.user.email ?? "");
 
-      console.log("[CONTACTS_PAGE] Fetching profile...");
       const { data: profile } = await supabase
         .from("profiles")
         .select("phone_number,phone_verified_at")
         .eq("id", uid)
         .single();
 
-      console.log("[CONTACTS_PAGE] Profile data:", profile);
       if (profile?.phone_number) {
         setPhoneNumber(profile.phone_number);
       }
       setPhoneVerifiedAt(profile?.phone_verified_at ?? null);
 
-      console.log("[CONTACTS_PAGE] Starting batch fetch...");
       await fetchContacts(uid);
       await Promise.all([fetchMatchCandidates(), fetchContactsWithWishlists()]);
-      console.log("[CONTACTS_PAGE] All fetches complete");
       setLoading(false);
     })();
 

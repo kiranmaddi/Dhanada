@@ -137,7 +137,6 @@ export default function WishlistDetailScreen() {
         }
       }
     } catch (err) {
-      console.error("Error:", err);
       setError("An unexpected error occurred");
     } finally {
       setLoading(false);

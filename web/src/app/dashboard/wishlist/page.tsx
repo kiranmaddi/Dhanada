@@ -133,23 +133,16 @@ export default function WishListPage() {
 
   const fetchSharedEvents = useCallback(
     async (wishlistId: string) => {
-      console.log("[FETCH_SHARED] Starting fetch for wishlist:", wishlistId);
       const { data, error } = await supabase
         .from("wishlist_event_shares")
         .select("wishlist_id,event_id")
         .eq("wishlist_id", wishlistId);
 
       if (error) {
-        console.error("[FETCH_SHARED] Error:", error);
         return;
       }
 
       const sharedData = (data ?? []) as SharedEvent[];
-      console.log(
-        "[FETCH_SHARED] Found shared events:",
-        sharedData.length,
-        sharedData,
-      );
       setSharedEvents(sharedData);
     },
     [supabase],
@@ -320,14 +313,6 @@ export default function WishListPage() {
   async function onShareWithEvent(eventId: string) {
     if (!userId || !selectedWishlistId) return;
 
-    console.log(
-      "[SHARE] Starting share - Wishlist:",
-      selectedWishlistId,
-      "Event:",
-      eventId,
-      "User:",
-      userId,
-    );
     setSharingEventId(eventId);
     const { data, error } = await supabase
       .from("wishlist_event_shares")
@@ -340,13 +325,11 @@ export default function WishListPage() {
       .select();
 
     if (error) {
-      console.error("[SHARE] Error:", error.code, error.message);
       // 409 = already shared (unique constraint), not an error to show to user
       if (!error.message.includes("unique constraint")) {
-        console.warn("Share error: " + error.message);
+        alert("Share error: " + error.message);
       }
     } else {
-      console.log("[SHARE] Success! Data returned:", data);
       // Add to local state
       setSharedEvents((curr) => [
         ...curr,
@@ -359,12 +342,6 @@ export default function WishListPage() {
   async function onUnshareWithEvent(eventId: string) {
     if (!selectedWishlistId) return;
 
-    console.log(
-      "[UNSHARE] Starting unshare - Wishlist:",
-      selectedWishlistId,
-      "Event:",
-      eventId,
-    );
     setSharingEventId(eventId);
     const { error } = await supabase
       .from("wishlist_event_shares")
@@ -373,9 +350,8 @@ export default function WishListPage() {
       .eq("event_id", eventId);
 
     if (error) {
-      console.error("[UNSHARE] Error:", error);
+      alert("Unshare error: " + error.message);
     } else {
-      console.log("[UNSHARE] Success!");
       // Remove from local state
       setSharedEvents((curr) =>
         curr.filter(

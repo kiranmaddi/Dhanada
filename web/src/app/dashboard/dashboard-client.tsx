@@ -123,7 +123,6 @@ export default function DashboardClient({
   };
 
   const fetchContacts = useCallback(async () => {
-    console.log("[WEB_FETCH_CONTACTS] Starting fetch for user:", userId);
     const { data, error } = await supabase
       .from("contacts")
       .select("id,name,phone")
@@ -131,49 +130,30 @@ export default function DashboardClient({
       .order("name");
 
     if (error) {
-      console.error("[WEB_FETCH_CONTACTS] Error:", error);
       return;
     }
 
-    console.log(
-      "[WEB_FETCH_CONTACTS] Found contacts:",
-      data?.length ?? 0,
-      data,
-    );
     setContacts((data ?? []) as Contact[]);
   }, [supabase, userId]);
 
   const fetchMatchCandidates = useCallback(async () => {
-    console.log("[WEB_FETCH_MATCH_CANDIDATES] Starting fetch");
     const { data, error } = await supabase.rpc("get_contact_match_candidates", {
       max_rows: 25,
     });
 
     if (error) {
-      console.error("[WEB_FETCH_MATCH_CANDIDATES] Error:", error);
-      console.warn("Match candidates error", error.message);
       return;
     }
 
-    console.log(
-      "[WEB_FETCH_MATCH_CANDIDATES] Found candidates:",
-      data?.length ?? 0,
-      data,
-    );
     setMatchCandidates((data ?? []) as MatchCandidate[]);
   }, [supabase]);
 
   const fetchContactsWithWishlists = useCallback(async () => {
-    console.log("[WEB_FETCH_CONTACTS_WITH_WISHLISTS] Starting fetch");
     const { data, error } = await supabase.rpc("get_contacts_on_app");
 
     if (error) {
-      console.error("[WEB_FETCH_CONTACTS_WITH_WISHLISTS] Error:", error);
-      console.warn("Contacts error", error.message);
       return;
     }
-
-    console.log("[WEB_FETCH_CONTACTS_WITH_WISHLISTS] Raw data received:", data);
     // Transform to unified contacts format
     const unified: UnifiedContact[] = (data ?? []).map((contact: any) => ({
       contact_id: contact.contact_id,
@@ -184,20 +164,11 @@ export default function DashboardClient({
       is_linked: true,
     }));
 
-    console.log(
-      "[WEB_FETCH_CONTACTS_WITH_WISHLISTS] Unified contacts:",
-      unified.length,
-      unified,
-    );
     setAllContacts(unified);
   }, [supabase]);
 
   const fetchSharedWishlistsFromContact = useCallback(
     async (contactUserId: string) => {
-      console.log(
-        "[WEB_FETCH_SHARED_WISHLISTS] Starting fetch for contact user:",
-        contactUserId,
-      );
       setLoadingContactWishlists(true);
       const { data, error } = await supabase.rpc(
         "get_shared_wishlists_from_contact",
@@ -206,17 +177,10 @@ export default function DashboardClient({
       setLoadingContactWishlists(false);
 
       if (error) {
-        console.error("[WEB_FETCH_SHARED_WISHLISTS] Error:", error);
-        console.warn("Shared wishlists from contact error", error.message);
         alert("Error: Failed to load wishlists");
         return;
       }
 
-      console.log(
-        "[WEB_FETCH_SHARED_WISHLISTS] Found wishlists:",
-        data?.length ?? 0,
-        data,
-      );
       setSharedWishlistsFromContact(
         (data ?? []) as SharedWishlistFromContact[],
       );
@@ -226,10 +190,6 @@ export default function DashboardClient({
 
   const fetchContactInvitedEvents = useCallback(
     async (contactId: string) => {
-      console.log(
-        "[WEB_FETCH_CONTACT_EVENTS] Starting fetch for contact:",
-        contactId,
-      );
       setLoadingContactEvents(true);
       const { data, error } = await supabase.rpc("get_contact_invited_events", {
         p_contact_user_id: contactId,
@@ -237,16 +197,9 @@ export default function DashboardClient({
       setLoadingContactEvents(false);
 
       if (error) {
-        console.error("[WEB_FETCH_CONTACT_EVENTS] Error:", error);
-        console.warn("Contact invited events error", error.message);
         return;
       }
 
-      console.log(
-        "[WEB_FETCH_CONTACT_EVENTS] Found events:",
-        data?.length ?? 0,
-        data,
-      );
       setContactInvitedEvents((data ?? []) as ContactInvitedEvent[]);
     },
     [supabase],
@@ -628,12 +581,6 @@ export default function DashboardClient({
                 }}
                 onClick={() => {
                   if (appUser && appUser.linked_user_id) {
-                    console.log(
-                      "[CONTACT_CLICK] contact_id:",
-                      appUser.contact_id,
-                      "linked_user_id:",
-                      appUser.linked_user_id,
-                    );
                     setSelectedContactForWishlists(appUser);
                     void fetchSharedWishlistsFromContact(
                       appUser.linked_user_id,

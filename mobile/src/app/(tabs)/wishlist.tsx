@@ -128,23 +128,18 @@ export default function WishListScreen() {
     [wishlists, selectedWishlistId],
   );
 
-  const fetchWishlists = useCallback(
-    async (ownerId: string) => {
-      console.log("[FETCH_WISHLISTS] Starting fetch for user:", ownerId);
-      const { data, error } = await supabase
+  const fetchWishlists = useCallback(\n    async (ownerId: string) => {\n      const { data, error } = await supabase
         .from("wishlists")
         .select("id,name,is_active,created_at")
         .order("is_active", { ascending: false })
         .order("created_at", { ascending: false });
 
       if (error) {
-        console.error("[FETCH_WISHLISTS] Error:", error);
         Alert.alert("Wishlists error", error.message);
         return;
       }
 
       const rows = activeFirst((data ?? []) as Wishlist[]);
-      console.log("[FETCH_WISHLISTS] Found wishlists:", rows.length, rows);
       setWishlists(rows);
       if (!selectedWishlistId && rows.length > 0) {
         setSelectedWishlistId(rows[0].id);
