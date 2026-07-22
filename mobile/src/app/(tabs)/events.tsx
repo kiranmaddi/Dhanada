@@ -41,6 +41,18 @@ type AppEvent = {
   created_at: string;
 };
 
+type Wishlist = {
+  id: string;
+  name: string;
+  description: string | null;
+  is_active: boolean;
+};
+
+type SharedWishlist = {
+  wishlist_id: string;
+  event_id: string;
+};
+
 function toDisplayDate(iso: string) {
   if (!iso) return "No date";
   const d = new Date(iso);

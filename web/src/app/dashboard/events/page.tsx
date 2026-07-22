@@ -14,6 +14,18 @@ type AppEvent = {
   created_at: string;
 };
 
+type Wishlist = {
+  id: string;
+  name: string;
+  description: string | null;
+  is_active: boolean;
+};
+
+type SharedWishlist = {
+  wishlist_id: string;
+  event_id: string;
+};
+
 function formatDate(iso: string) {
   if (!iso) return "—";
   const d = new Date(iso);
@@ -31,6 +43,12 @@ export default function EventsPage() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [updating, setUpdating] = useState(false);
+  const [wishlists, setWishlists] = useState<Wishlist[]>([]);
+  const [sharedWishlists, setSharedWishlists] = useState<SharedWishlist[]>([]);
+  const [loadingWishlists, setLoadingWishlists] = useState(false);
+  const [sharingWishlistId, setSharingWishlistId] = useState<string | null>(
+    null,
+  );
 
   // Form state
   const [eventName, setEventName] = useState("");
@@ -69,6 +87,32 @@ export default function EventsPage() {
     [supabase],
   );
 
+  const fetchWishlists = useCallback(
+    async (ownerId: string) => {
+      setLoadingWishlists(true);
+      const { data, error } = await supabase
+        .from("wishlists")
+        .select("id,name,description,is_active")
+        .eq("owner_id", ownerId)
+        .eq("is_active", true)
+        .order("created_at", { ascending: false });
+      if (!error) setWishlists((data ?? []) as Wishlist[]);
+      setLoadingWishlists(false);
+    },
+    [supabase],
+  );
+
+  const fetchSharedWishlists = useCallback(
+    async (eventId: string) => {
+      const { data, error } = await supabase
+        .from("wishlist_event_shares")
+        .select("wishlist_id,event_id")
+        .eq("event_id", eventId);
+      if (!error) setSharedWishlists((data ?? []) as SharedWishlist[]);
+    },
+    [supabase],
+  );
+
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
       if (!data.session?.user) {
@@ -76,9 +120,12 @@ export default function EventsPage() {
         return;
       }
       setUserId(data.session.user.id);
-      fetchEvents(data.session.user.id).finally(() => setLoading(false));
+      Promise.all([
+        fetchEvents(data.session.user.id),
+        fetchWishlists(data.session.user.id),
+      ]).finally(() => setLoading(false));
     });
-  }, [supabase, fetchEvents]);
+  }, [supabase, fetchEvents, fetchWishlists]);
 
   async function onCreate(e: React.FormEvent) {
     e.preventDefault();
@@ -200,6 +247,27 @@ export default function EventsPage() {
     setEditingId(null);
   }
 
+  async function onShareWishlist(wishlistId: string, eventId: string) {
+    if (!userId) return;
+    setSharingWishlistId(wishlistId);
+    const { error } = await supabase
+      .from("wishlist_event_shares")
+      .insert({
+        wishlist_id: wishlistId,
+        event_id: eventId,
+        shared_by_user_id: userId,
+        permission: "view",
+      })
+      .select();
+
+    if (!error) {
+      void fetchSharedWishlists(eventId);
+    } else {
+      console.warn("Share error:", error.message);
+    }
+    setSharingWishlistId(null);
+  }
+
   if (loading) return <p className="empty">Loading...</p>;
 
   return (
@@ -318,9 +386,14 @@ export default function EventsPage() {
               <div
                 key={ev.id}
                 className="event-item"
-                onClick={() =>
-                  setExpandedId(expandedId === ev.id ? null : ev.id)
-                }
+                onClick={() => {
+                  if (expandedId === ev.id) {
+                    setExpandedId(null);
+                  } else {
+                    setExpandedId(ev.id);
+                    void fetchSharedWishlists(ev.id);
+                  }
+                }}
               >
                 <div className="event-header">
                   <div style={{ flex: 1 }}>
@@ -355,6 +428,79 @@ export default function EventsPage() {
                     {ev.invitation_text && (
                       <p className="detail-row">✉️ {ev.invitation_text}</p>
                     )}
+
+                    {/* Wishlist sharing section */}
+                    <div
+                      style={{
+                        marginTop: 16,
+                        paddingTop: 16,
+                        borderTop: "1px solid #333",
+                      }}
+                    >
+                      <div style={{ fontWeight: 600, marginBottom: 8 }}>
+                        Share Wishlist
+                      </div>
+                      {loadingWishlists ? (
+                        <p className="empty" style={{ fontSize: 12 }}>
+                          Loading...
+                        </p>
+                      ) : wishlists.length === 0 ? (
+                        <p className="empty" style={{ fontSize: 12 }}>
+                          No wishlists yet
+                        </p>
+                      ) : (
+                        <div
+                          style={{
+                            display: "flex",
+                            flexDirection: "column",
+                            gap: 8,
+                          }}
+                        >
+                          {wishlists.map((wl) => {
+                            const isShared = sharedWishlists.some(
+                              (sw) => sw.wishlist_id === wl.id,
+                            );
+                            return (
+                              <div
+                                key={wl.id}
+                                style={{
+                                  display: "flex",
+                                  justifyContent: "space-between",
+                                  alignItems: "center",
+                                  padding: 8,
+                                  backgroundColor: "#111",
+                                  borderRadius: 6,
+                                  fontSize: 13,
+                                }}
+                              >
+                                <span>{wl.name}</span>
+                                <button
+                                  className={
+                                    isShared ? "btn-secondary" : "btn-primary"
+                                  }
+                                  disabled={
+                                    isShared || sharingWishlistId === wl.id
+                                  }
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    if (!isShared) {
+                                      void onShareWishlist(wl.id, ev.id);
+                                    }
+                                  }}
+                                  style={{ padding: "4px 12px", fontSize: 12 }}
+                                >
+                                  {sharingWishlistId === wl.id
+                                    ? "Sharing..."
+                                    : isShared
+                                      ? "Shared"
+                                      : "Share"}
+                                </button>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
                   </div>
                 )}
               </div>

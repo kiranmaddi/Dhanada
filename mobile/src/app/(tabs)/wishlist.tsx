@@ -21,14 +21,14 @@
  *   created_at timestamptz not null default now()
  * );
  *
- * create table if not exists event_wishlists (
+ * create table if not exists wishlist_event_shares (
  *   id uuid primary key default gen_random_uuid(),
- *   owner_id uuid references auth.users(id) on delete cascade not null,
- *   event_id uuid references events(id) on delete cascade not null,
  *   wishlist_id uuid references wishlists(id) on delete cascade not null,
- *   is_active boolean not null default true,
+ *   event_id uuid references events(id) on delete cascade not null,
+ *   shared_by_user_id uuid references auth.users(id) on delete cascade not null,
+ *   permission text default 'view',
  *   created_at timestamptz not null default now(),
- *   unique (event_id, wishlist_id)
+ *   unique (wishlist_id, event_id)
  * );
  *
  * -- Storage bucket for images:
@@ -77,10 +77,8 @@ type EventRow = {
 };
 
 type EventLink = {
-  id: string;
   wishlist_id: string;
   event_id: string;
-  is_active: boolean;
 };
 
 type SelectedImage = {
@@ -114,6 +112,7 @@ export default function WishListScreen() {
   const [items, setItems] = useState<WishlistItem[]>([]);
   const [events, setEvents] = useState<EventRow[]>([]);
   const [links, setLinks] = useState<EventLink[]>([]);
+  const [sharingEventId, setSharingEventId] = useState<string | null>(null);
 
   const [wishlistName, setWishlistName] = useState("");
   const [itemName, setItemName] = useState("");
@@ -131,25 +130,27 @@ export default function WishListScreen() {
 
   const fetchWishlists = useCallback(
     async (ownerId: string) => {
+      console.log("[FETCH_WISHLISTS] Starting fetch for user:", ownerId);
       const { data, error } = await supabase
         .from("wishlists")
         .select("id,name,is_active,created_at")
-        .eq("owner_id", ownerId)
         .order("is_active", { ascending: false })
         .order("created_at", { ascending: false });
 
       if (error) {
+        console.error("[FETCH_WISHLISTS] Error:", error);
         Alert.alert("Wishlists error", error.message);
         return;
       }
 
       const rows = activeFirst((data ?? []) as Wishlist[]);
+      console.log("[FETCH_WISHLISTS] Found wishlists:", rows.length, rows);
       setWishlists(rows);
       if (!selectedWishlistId && rows.length > 0) {
         setSelectedWishlistId(rows[0].id);
       }
     },
-    [selectedWishlistId],
+    [supabase, selectedWishlistId],
   );
 
   const fetchItems = useCallback(async (wishlistId: string) => {
@@ -183,14 +184,14 @@ export default function WishListScreen() {
     setEvents((data ?? []) as EventRow[]);
   }, []);
 
-  const fetchLinks = useCallback(async (wishlistId: string) => {
+  const fetchSharedEvents = useCallback(async (wishlistId: string) => {
     const { data, error } = await supabase
-      .from("event_wishlists")
-      .select("id,wishlist_id,event_id,is_active")
+      .from("wishlist_event_shares")
+      .select("wishlist_id,event_id")
       .eq("wishlist_id", wishlistId);
 
     if (error) {
-      Alert.alert("Wishlist-event link error", error.message);
+      Alert.alert("Wishlist-event share error", error.message);
       return;
     }
 
@@ -229,8 +230,8 @@ export default function WishListScreen() {
     }
 
     void fetchItems(selectedWishlistId);
-    void fetchLinks(selectedWishlistId);
-  }, [fetchItems, fetchLinks, selectedWishlistId]);
+    void fetchSharedEvents(selectedWishlistId);
+  }, [fetchItems, fetchSharedEvents, selectedWishlistId]);
 
   async function uploadImage(ownerId: string, image: SelectedImage) {
     const ext = (image.mimeType ?? "image/jpeg").includes("png")
@@ -418,52 +419,60 @@ export default function WishListScreen() {
     );
   }
 
-  async function onToggleEventShare(eventId: string) {
-    if (!selectedWishlistId || !userId) return;
+  async function onShareWithEvent(eventId: string) {
+    if (!userId || !selectedWishlistId) return;
 
-    const existing =
-      links.find(
-        (l) => l.event_id === eventId && l.wishlist_id === selectedWishlistId,
-      ) ?? null;
-
-    if (!existing) {
-      const { data, error } = await supabase
-        .from("event_wishlists")
-        .insert({
-          owner_id: userId,
-          wishlist_id: selectedWishlistId,
-          event_id: eventId,
-          is_active: true,
-        })
-        .select("id,wishlist_id,event_id,is_active")
-        .single();
-
-      if (error) {
-        Alert.alert("Share link failed", error.message);
-        return;
-      }
-
-      if (data) {
-        setLinks((curr) => [...curr, data as EventLink]);
-      }
-      return;
-    }
-
+    setSharingEventId(eventId);
     const { error } = await supabase
-      .from("event_wishlists")
-      .update({ is_active: !existing.is_active })
-      .eq("id", existing.id);
+      .from("wishlist_event_shares")
+      .insert({
+        wishlist_id: selectedWishlistId,
+        event_id: eventId,
+        shared_by_user_id: userId,
+        permission: "view",
+      })
+      .select();
 
     if (error) {
-      Alert.alert("Update share link failed", error.message);
-      return;
+      // 409 = already shared (unique constraint), not an error to show to user
+      if (!error.message.includes("unique constraint")) {
+        Alert.alert("Share error", error.message);
+      }
+    } else {
+      // Add to local state
+      setLinks((curr) => [
+        ...curr,
+        { wishlist_id: selectedWishlistId, event_id: eventId },
+      ]);
     }
+    setSharingEventId(null);
+  }
 
-    setLinks((curr) =>
-      curr.map((l) =>
-        l.id === existing.id ? { ...l, is_active: !l.is_active } : l,
-      ),
-    );
+  async function onUnshareWithEvent(eventId: string) {
+    if (!selectedWishlistId) return;
+
+    setSharingEventId(eventId);
+    const { error } = await supabase
+      .from("wishlist_event_shares")
+      .delete()
+      .eq("wishlist_id", selectedWishlistId)
+      .eq("event_id", eventId);
+
+    if (error) {
+      Alert.alert("Unshare error", error.message);
+    } else {
+      // Remove from local state
+      setLinks((curr) =>
+        curr.filter(
+          (link) =>
+            !(
+              link.event_id === eventId &&
+              link.wishlist_id === selectedWishlistId
+            ),
+        ),
+      );
+    }
+    setSharingEventId(null);
   }
 
   if (loading) {
@@ -654,12 +663,11 @@ export default function WishListScreen() {
                     keyExtractor={(item) => item.id}
                     scrollEnabled={false}
                     renderItem={({ item }) => {
-                      const linked =
+                      const isShared =
                         links.find(
                           (l) =>
                             l.event_id === item.id &&
-                            l.wishlist_id === selectedWishlist.id &&
-                            l.is_active,
+                            l.wishlist_id === selectedWishlist.id,
                         ) != null;
 
                       return (
@@ -673,11 +681,25 @@ export default function WishListScreen() {
                             </Text>
                           </View>
                           <Pressable
-                            style={styles.pillButton}
-                            onPress={() => onToggleEventShare(item.id)}
+                            style={[
+                              styles.pillButton,
+                              sharingEventId === item.id && {
+                                opacity: 0.5,
+                              },
+                            ]}
+                            onPress={() =>
+                              isShared
+                                ? void onUnshareWithEvent(item.id)
+                                : void onShareWithEvent(item.id)
+                            }
+                            disabled={sharingEventId === item.id}
                           >
                             <Text style={styles.pillButtonText}>
-                              {linked ? "Shared" : "Share"}
+                              {sharingEventId === item.id
+                                ? "Updating..."
+                                : isShared
+                                  ? "Unshare"
+                                  : "Share"}
                             </Text>
                           </Pressable>
                         </View>

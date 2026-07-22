@@ -25,11 +25,9 @@ type EventRow = {
   event_date: string;
 };
 
-type EventLink = {
-  id: string;
+type SharedEvent = {
   wishlist_id: string;
   event_id: string;
-  is_active: boolean;
 };
 
 function activeFirst<T extends { is_active: boolean; created_at: string }>(
@@ -59,7 +57,8 @@ export default function WishListPage() {
   );
   const [items, setItems] = useState<WishlistItem[]>([]);
   const [events, setEvents] = useState<EventRow[]>([]);
-  const [links, setLinks] = useState<EventLink[]>([]);
+  const [sharedEvents, setSharedEvents] = useState<SharedEvent[]>([]);
+  const [sharingEventId, setSharingEventId] = useState<string | null>(null);
 
   const [creatingList, setCreatingList] = useState(false);
   const [creatingItem, setCreatingItem] = useState(false);
@@ -78,7 +77,6 @@ export default function WishListPage() {
       const { data, error } = await supabase
         .from("wishlists")
         .select("id,name,is_active,created_at")
-        .eq("owner_id", ownerId)
         .order("is_active", { ascending: false })
         .order("created_at", { ascending: false });
 
@@ -133,19 +131,26 @@ export default function WishListPage() {
     [supabase],
   );
 
-  const fetchLinks = useCallback(
+  const fetchSharedEvents = useCallback(
     async (wishlistId: string) => {
+      console.log("[FETCH_SHARED] Starting fetch for wishlist:", wishlistId);
       const { data, error } = await supabase
-        .from("event_wishlists")
-        .select("id,wishlist_id,event_id,is_active")
+        .from("wishlist_event_shares")
+        .select("wishlist_id,event_id")
         .eq("wishlist_id", wishlistId);
 
       if (error) {
-        alert("Wishlist-event link error: " + error.message);
+        console.error("[FETCH_SHARED] Error:", error);
         return;
       }
 
-      setLinks((data ?? []) as EventLink[]);
+      const sharedData = (data ?? []) as SharedEvent[];
+      console.log(
+        "[FETCH_SHARED] Found shared events:",
+        sharedData.length,
+        sharedData,
+      );
+      setSharedEvents(sharedData);
     },
     [supabase],
   );
@@ -167,12 +172,12 @@ export default function WishListPage() {
   useEffect(() => {
     if (!selectedWishlistId) {
       setItems([]);
-      setLinks([]);
+      setSharedEvents([]);
       return;
     }
     fetchItems(selectedWishlistId);
-    fetchLinks(selectedWishlistId);
-  }, [selectedWishlistId, fetchItems, fetchLinks]);
+    fetchSharedEvents(selectedWishlistId);
+  }, [selectedWishlistId, fetchItems, fetchSharedEvents]);
 
   async function uploadImage(ownerId: string, file: File) {
     const ext = file.name.split(".").pop() || "jpg";
@@ -312,55 +317,74 @@ export default function WishListPage() {
     );
   }
 
-  async function onToggleEventShare(eventId: string) {
+  async function onShareWithEvent(eventId: string) {
     if (!userId || !selectedWishlistId) return;
 
-    const existing =
-      links.find(
-        (link) =>
-          link.event_id === eventId && link.wishlist_id === selectedWishlistId,
-      ) ?? null;
-
-    if (!existing) {
-      const { data, error } = await supabase
-        .from("event_wishlists")
-        .insert({
-          owner_id: userId,
-          wishlist_id: selectedWishlistId,
-          event_id: eventId,
-          is_active: true,
-        })
-        .select("id,wishlist_id,event_id,is_active")
-        .single();
-
-      if (error) {
-        alert("Share link failed: " + error.message);
-        return;
-      }
-
-      if (data) {
-        setLinks((curr) => [...curr, data as EventLink]);
-      }
-      return;
-    }
-
-    const { error } = await supabase
-      .from("event_wishlists")
-      .update({ is_active: !existing.is_active })
-      .eq("id", existing.id);
+    console.log(
+      "[SHARE] Starting share - Wishlist:",
+      selectedWishlistId,
+      "Event:",
+      eventId,
+      "User:",
+      userId,
+    );
+    setSharingEventId(eventId);
+    const { data, error } = await supabase
+      .from("wishlist_event_shares")
+      .insert({
+        wishlist_id: selectedWishlistId,
+        event_id: eventId,
+        shared_by_user_id: userId,
+        permission: "view",
+      })
+      .select();
 
     if (error) {
-      alert("Update share link failed: " + error.message);
-      return;
+      console.error("[SHARE] Error:", error.code, error.message);
+      // 409 = already shared (unique constraint), not an error to show to user
+      if (!error.message.includes("unique constraint")) {
+        console.warn("Share error: " + error.message);
+      }
+    } else {
+      console.log("[SHARE] Success! Data returned:", data);
+      // Add to local state
+      setSharedEvents((curr) => [
+        ...curr,
+        { wishlist_id: selectedWishlistId, event_id: eventId },
+      ]);
     }
+    setSharingEventId(null);
+  }
 
-    setLinks((curr) =>
-      curr.map((link) =>
-        link.id === existing.id
-          ? { ...link, is_active: !link.is_active }
-          : link,
-      ),
+  async function onUnshareWithEvent(eventId: string) {
+    if (!selectedWishlistId) return;
+
+    console.log(
+      "[UNSHARE] Starting unshare - Wishlist:",
+      selectedWishlistId,
+      "Event:",
+      eventId,
     );
+    setSharingEventId(eventId);
+    const { error } = await supabase
+      .from("wishlist_event_shares")
+      .delete()
+      .eq("wishlist_id", selectedWishlistId)
+      .eq("event_id", eventId);
+
+    if (error) {
+      console.error("[UNSHARE] Error:", error);
+    } else {
+      console.log("[UNSHARE] Success!");
+      // Remove from local state
+      setSharedEvents((curr) =>
+        curr.filter(
+          (se) =>
+            !(se.event_id === eventId && se.wishlist_id === selectedWishlistId),
+        ),
+      );
+    }
+    setSharingEventId(null);
   }
 
   if (loading) {
@@ -443,13 +467,11 @@ export default function WishListPage() {
               <p className="empty">No events yet.</p>
             ) : (
               events.map((event) => {
-                const link =
-                  links.find(
-                    (l) =>
-                      l.event_id === event.id &&
-                      l.wishlist_id === selectedWishlist.id,
-                  ) ?? null;
-                const linked = link?.is_active ?? false;
+                const isShared = sharedEvents.some(
+                  (se) =>
+                    se.event_id === event.id &&
+                    se.wishlist_id === selectedWishlist.id,
+                );
                 return (
                   <div key={event.id} className="list-item row">
                     <div style={{ flex: 1 }}>
@@ -459,11 +481,20 @@ export default function WishListPage() {
                       </div>
                     </div>
                     <button
-                      className="add-btn"
+                      className={isShared ? "btn-secondary" : "add-btn"}
                       type="button"
-                      onClick={() => void onToggleEventShare(event.id)}
+                      disabled={sharingEventId === event.id}
+                      onClick={() =>
+                        isShared
+                          ? void onUnshareWithEvent(event.id)
+                          : void onShareWithEvent(event.id)
+                      }
                     >
-                      {linked ? "Shared" : "Share"}
+                      {sharingEventId === event.id
+                        ? "Updating..."
+                        : isShared
+                          ? "Unshare"
+                          : "Share"}
                     </button>
                   </div>
                 );

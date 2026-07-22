@@ -11,6 +11,7 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { useRouter } from "expo-router";
 
 import { CollapsibleSection } from "@/components/ui/collapsible-section";
 import { supabase } from "@/lib/supabase";
@@ -26,6 +27,35 @@ type MatchCandidate = {
   contact_name: string;
   contact_phone: string | null;
   matched_user_id: string;
+};
+
+type UnifiedContact = {
+  contact_id: string;
+  contact_name: string;
+  contact_phone: string | null;
+  linked_user_id: string | null;
+  user_name?: string;
+  is_linked: boolean;
+};
+
+type SharedWishlistFromContact = {
+  wishlist_id: string;
+  wishlist_name: string;
+  owner_id: string;
+  owner_name: string;
+  permission: string;
+  item_count: number;
+  created_at: string;
+};
+
+type ContactInvitedEvent = {
+  event_id: string;
+  event_name: string;
+  event_date: string;
+  venue: string | null;
+  description: string | null;
+  owner_id: string;
+  owner_name: string;
 };
 
 function isValidOptionalPhone(value: string) {
@@ -45,6 +75,7 @@ function generateInviteToken() {
 }
 
 export default function HomeScreen() {
+  const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [savingPhone, setSavingPhone] = useState(false);
   const [addingContact, setAddingContact] = useState(false);
@@ -58,10 +89,20 @@ export default function HomeScreen() {
   const [contactPhone, setContactPhone] = useState("");
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [matchCandidates, setMatchCandidates] = useState<MatchCandidate[]>([]);
-  const [loadingMatches, setLoadingMatches] = useState(false);
   const [connectingContactId, setConnectingContactId] = useState<string | null>(
     null,
   );
+  const [allContacts, setAllContacts] = useState<UnifiedContact[]>([]);
+  const [selectedContactForWishlists, setSelectedContactForWishlists] =
+    useState<UnifiedContact | null>(null);
+  const [sharedWishlistsFromContact, setSharedWishlistsFromContact] = useState<
+    SharedWishlistFromContact[]
+  >([]);
+  const [loadingContactWishlists, setLoadingContactWishlists] = useState(false);
+  const [contactInvitedEvents, setContactInvitedEvents] = useState<
+    ContactInvitedEvent[]
+  >([]);
+  const [loadingContactEvents, setLoadingContactEvents] = useState(false);
   const [editingContactId, setEditingContactId] = useState<string | null>(null);
 
   const isReady = useMemo(() => Boolean(userId), [userId]);
@@ -92,6 +133,7 @@ export default function HomeScreen() {
   };
 
   const fetchContacts = useCallback(async (ownerId: string) => {
+    console.log("[FETCH_CONTACTS] Starting fetch for owner:", ownerId);
     const { data, error } = await supabase
       .from("contacts")
       .select("id,name,phone")
@@ -99,65 +141,165 @@ export default function HomeScreen() {
       .order("created_at", { ascending: false });
 
     if (error) {
+      console.error("[FETCH_CONTACTS] Error:", error);
       Alert.alert("Contacts error", error.message);
       return;
     }
 
+    console.log("[FETCH_CONTACTS] Found contacts:", data?.length ?? 0, data);
     setContacts((data ?? []) as Contact[]);
   }, []);
 
   const fetchMatchCandidates = useCallback(async () => {
-    setLoadingMatches(true);
+    console.log("[FETCH_MATCH_CANDIDATES] Starting fetch");
     const { data, error } = await supabase.rpc("get_contact_match_candidates", {
       max_rows: 25,
     });
-    setLoadingMatches(false);
 
     if (error) {
+      console.error("[FETCH_MATCH_CANDIDATES] Error:", error);
       console.warn("Match candidates error", error.message);
       return;
     }
 
+    console.log(
+      "[FETCH_MATCH_CANDIDATES] Found candidates:",
+      data?.length ?? 0,
+      data,
+    );
     setMatchCandidates((data ?? []) as MatchCandidate[]);
+  }, []);
+
+  const fetchContactsWithWishlists = useCallback(async () => {
+    console.log("[FETCH_CONTACTS_WITH_WISHLISTS] Starting fetch");
+    const { data, error } = await supabase.rpc("get_contacts_on_app");
+
+    if (error) {
+      console.error("[FETCH_CONTACTS_WITH_WISHLISTS] Error:", error);
+      console.warn("Contacts error", error.message);
+      return;
+    }
+
+    console.log("[FETCH_CONTACTS_WITH_WISHLISTS] Raw data received:", data);
+    // Transform to unified contacts format
+    const unified: UnifiedContact[] = (data ?? []).map((contact: any) => ({
+      contact_id: contact.contact_id,
+      contact_name: contact.contact_name,
+      contact_phone: contact.contact_phone,
+      linked_user_id: contact.linked_user_id,
+      user_name: contact.user_name,
+      is_linked: true,
+    }));
+
+    console.log(
+      "[FETCH_CONTACTS_WITH_WISHLISTS] Unified contacts:",
+      unified.length,
+      unified,
+    );
+    setAllContacts(unified);
+  }, []);
+
+  const fetchSharedWishlistsFromContact = useCallback(
+    async (contactUserId: string) => {
+      console.log(
+        "[FETCH_SHARED_WISHLISTS] Starting fetch for contact user:",
+        contactUserId,
+      );
+      setLoadingContactWishlists(true);
+      const { data, error } = await supabase.rpc(
+        "get_shared_wishlists_from_contact",
+        { p_contact_user_id: contactUserId },
+      );
+      setLoadingContactWishlists(false);
+
+      if (error) {
+        console.error("[FETCH_SHARED_WISHLISTS] Error:", error);
+        console.warn("Shared wishlists from contact error", error.message);
+        Alert.alert("Error", "Failed to load wishlists");
+        return;
+      }
+
+      console.log(
+        "[FETCH_SHARED_WISHLISTS] Found wishlists:",
+        data?.length ?? 0,
+        data,
+      );
+      setSharedWishlistsFromContact(
+        (data ?? []) as SharedWishlistFromContact[],
+      );
+    },
+    [],
+  );
+
+  const fetchContactInvitedEvents = useCallback(async (contactId: string) => {
+    console.log(
+      "[FETCH_CONTACT_EVENTS] Starting fetch for contact:",
+      contactId,
+    );
+    setLoadingContactEvents(true);
+    const { data, error } = await supabase.rpc("get_contact_invited_events", {
+      p_contact_user_id: contactId,
+    });
+    setLoadingContactEvents(false);
+
+    if (error) {
+      console.error("[FETCH_CONTACT_EVENTS] Error:", error);
+      console.warn("Contact invited events error", error.message);
+      return;
+    }
+
+    console.log(
+      "[FETCH_CONTACT_EVENTS] Found events:",
+      data?.length ?? 0,
+      data,
+    );
+    setContactInvitedEvents((data ?? []) as ContactInvitedEvent[]);
   }, []);
 
   useEffect(() => {
     let mounted = true;
 
     (async () => {
+      console.log("[CONTACTS_PAGE] Initializing...");
       const {
         data: { session },
       } = await supabase.auth.getSession();
 
       if (!mounted || !session?.user) {
+        console.log("[CONTACTS_PAGE] No session, skipping load");
         setLoading(false);
         return;
       }
 
       const uid = session.user.id;
+      console.log("[CONTACTS_PAGE] User session found:", uid);
       setUserId(uid);
       setEmail(session.user.email ?? "");
 
+      console.log("[CONTACTS_PAGE] Fetching profile...");
       const { data: profile } = await supabase
         .from("profiles")
         .select("phone_number,phone_verified_at")
         .eq("id", uid)
         .single();
 
+      console.log("[CONTACTS_PAGE] Profile data:", profile);
       if (profile?.phone_number) {
         setPhoneNumber(profile.phone_number);
       }
       setPhoneVerifiedAt(profile?.phone_verified_at ?? null);
 
+      console.log("[CONTACTS_PAGE] Starting batch fetch...");
       await fetchContacts(uid);
-      await fetchMatchCandidates();
+      await Promise.all([fetchMatchCandidates(), fetchContactsWithWishlists()]);
+      console.log("[CONTACTS_PAGE] All fetches complete");
       setLoading(false);
     })();
 
     return () => {
       mounted = false;
     };
-  }, [fetchContacts, fetchMatchCandidates]);
+  }, [fetchContacts, fetchMatchCandidates, fetchContactsWithWishlists]);
 
   async function onSavePhone() {
     if (!userId) return;
@@ -341,6 +483,7 @@ export default function HomeScreen() {
     setMatchCandidates((cur) =>
       cur.filter((row) => row.contact_id !== candidate.contact_id),
     );
+    void fetchContactsWithWishlists();
   }
 
   async function onInviteContact(contact: Contact) {
@@ -538,86 +681,192 @@ export default function HomeScreen() {
                 No contacts yet. Add your first contact.
               </Text>
             }
-            renderItem={({ item }) => (
-              <View style={styles.listItem}>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.listName}>{item.name}</Text>
-                  <Text style={styles.listPhone}>
-                    {item.phone || "No phone"}
-                  </Text>
-                </View>
-                <View style={styles.rowActions}>
-                  {hasValidPhone(item.phone) && (
+            renderItem={({ item }) => {
+              // Check if this contact is an app user
+              const appUser = allContacts.find(
+                (ac) =>
+                  ac.contact_phone === item.phone ||
+                  ac.contact_name === item.name,
+              );
+              return (
+                <Pressable
+                  style={styles.listItem}
+                  onPress={() => {
+                    if (appUser && appUser.linked_user_id) {
+                      setSelectedContactForWishlists(appUser);
+                      void fetchSharedWishlistsFromContact(
+                        appUser.linked_user_id,
+                      );
+                      void fetchContactInvitedEvents(appUser.linked_user_id);
+                    }
+                  }}
+                >
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.listName}>{item.name}</Text>
+                    <Text style={styles.listPhone}>
+                      {item.phone || "No phone"}
+                    </Text>
+                  </View>
+                  <View style={styles.rowActions}>
+                    {appUser ? (
+                      <View
+                        style={{
+                          backgroundColor: "#10b981",
+                          paddingHorizontal: 8,
+                          paddingVertical: 4,
+                          borderRadius: 4,
+                        }}
+                      >
+                        <Text
+                          style={{
+                            color: "white",
+                            fontSize: 12,
+                            fontWeight: "600",
+                          }}
+                        >
+                          App User
+                        </Text>
+                      </View>
+                    ) : (
+                      <>
+                        {hasValidPhone(item.phone) && (
+                          <Pressable
+                            style={styles.editButton}
+                            onPress={(e) => {
+                              const candidate = candidateByContactId.get(
+                                item.id,
+                              );
+                              if (candidate) {
+                                void onConnectCandidate(candidate);
+                              } else {
+                                void onInviteContact(item);
+                              }
+                            }}
+                            disabled={connectingContactId === item.id}
+                          >
+                            <Text style={styles.editButtonText}>
+                              {connectingContactId === item.id
+                                ? "Connecting..."
+                                : "Connect"}
+                            </Text>
+                          </Pressable>
+                        )}
+                      </>
+                    )}
                     <Pressable
                       style={styles.editButton}
-                      onPress={() => {
-                        const candidate = candidateByContactId.get(item.id);
-                        if (candidate) {
-                          void onConnectCandidate(candidate);
-                        } else {
-                          void onInviteContact(item);
-                        }
-                      }}
-                      disabled={connectingContactId === item.id}
+                      onPress={() => startEditContact(item)}
                     >
-                      <Text style={styles.editButtonText}>
-                        {connectingContactId === item.id
-                          ? "Connecting..."
-                          : "Connect"}
-                      </Text>
+                      <Text style={styles.editButtonText}>Edit</Text>
                     </Pressable>
-                  )}
-                  <Pressable
-                    style={styles.editButton}
-                    onPress={() => startEditContact(item)}
-                  >
-                    <Text style={styles.editButtonText}>Edit</Text>
-                  </Pressable>
-                </View>
-              </View>
-            )}
+                  </View>
+                </Pressable>
+              );
+            }}
           />
         </CollapsibleSection>
       </View>
 
-      <View style={styles.card}>
-        <CollapsibleSection title="People You May Know on Dhanada">
-          {loadingMatches ? (
-            <Text style={styles.emptyText}>Finding matches...</Text>
-          ) : matchCandidates.length === 0 ? (
+      {selectedContactForWishlists && (
+        <View style={styles.card}>
+          <View style={styles.modalHeader}>
+            <Pressable onPress={() => setSelectedContactForWishlists(null)}>
+              <Text
+                style={{ color: "#00d2ff", fontSize: 16, fontWeight: "600" }}
+              >
+                ← Back
+              </Text>
+            </Pressable>
+            <Text style={styles.cardTitle}>
+              {selectedContactForWishlists.contact_name}
+            </Text>
+          </View>
+
+          {/* Wishlists Section */}
+          <Text
+            style={{
+              color: "#9aa5c5",
+              fontSize: 13,
+              marginBottom: 8,
+              marginTop: 12,
+              fontWeight: "600",
+            }}
+          >
+            Shared Wishlists
+          </Text>
+          {loadingContactWishlists ? (
+            <Text style={styles.emptyText}>Loading wishlists...</Text>
+          ) : sharedWishlistsFromContact.length === 0 ? (
             <Text style={styles.emptyText}>
-              No match suggestions right now.
+              No wishlists shared by this contact.
             </Text>
           ) : (
             <FlatList
-              data={matchCandidates}
-              keyExtractor={(item) => item.contact_id}
+              data={sharedWishlistsFromContact}
+              keyExtractor={(item) => item.wishlist_id}
               style={styles.list}
+              scrollEnabled={false}
+              renderItem={({ item }) => (
+                <Pressable
+                  onPress={() =>
+                    router.push(
+                      `/wishlist/${item.wishlist_id}?contactId=${selectedContactForWishlists?.contact_id}&contactName=${encodeURIComponent(selectedContactForWishlists?.contact_name || "")}&ownerName=${encodeURIComponent(item.owner_name)}&ownerId=${item.owner_id}`,
+                    )
+                  }
+                >
+                  <View style={styles.listItem}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.listName}>{item.wishlist_name}</Text>
+                      <Text style={styles.listPhone}>
+                        {item.item_count}{" "}
+                        {item.item_count === 1 ? "item" : "items"}
+                      </Text>
+                    </View>
+                  </View>
+                </Pressable>
+              )}
+            />
+          )}
+
+          {/* Events Section */}
+          <Text
+            style={{
+              color: "#9aa5c5",
+              fontSize: 13,
+              marginBottom: 8,
+              marginTop: 16,
+              fontWeight: "600",
+            }}
+          >
+            Invited Events
+          </Text>
+          {loadingContactEvents ? (
+            <Text style={styles.emptyText}>Loading events...</Text>
+          ) : contactInvitedEvents.length === 0 ? (
+            <Text style={styles.emptyText}>Not invited to any events.</Text>
+          ) : (
+            <FlatList
+              data={contactInvitedEvents}
+              keyExtractor={(item) => item.event_id}
+              style={styles.list}
+              scrollEnabled={false}
               renderItem={({ item }) => (
                 <View style={styles.listItem}>
                   <View style={{ flex: 1 }}>
-                    <Text style={styles.listName}>{item.contact_name}</Text>
+                    <Text style={styles.listName}>{item.event_name}</Text>
                     <Text style={styles.listPhone}>
-                      {item.contact_phone || "No phone"}
+                      📅 {new Date(item.event_date).toLocaleDateString()}
                     </Text>
+                    {item.venue && (
+                      <Text style={styles.listPhone}>📍 {item.venue}</Text>
+                    )}
                   </View>
-                  <Pressable
-                    style={styles.editButton}
-                    onPress={() => void onConnectCandidate(item)}
-                    disabled={connectingContactId === item.contact_id}
-                  >
-                    <Text style={styles.editButtonText}>
-                      {connectingContactId === item.contact_id
-                        ? "Connecting..."
-                        : "Connect"}
-                    </Text>
-                  </Pressable>
                 </View>
               )}
             />
           )}
-        </CollapsibleSection>
-      </View>
+        </View>
+      )}
 
       <Pressable style={styles.secondaryButton} onPress={onSignOut}>
         <Text style={styles.secondaryButtonText}>Sign Out</Text>
@@ -658,6 +907,12 @@ const styles = StyleSheet.create({
     color: "#ffffff",
     fontWeight: "700",
     fontSize: 16,
+  },
+  modalHeader: {
+    marginBottom: 8,
+    paddingBottom: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: "#223157",
   },
   input: {
     backgroundColor: "#0d1732",
@@ -714,6 +969,18 @@ const styles = StyleSheet.create({
   listPhone: {
     color: "#94a3b8",
     marginTop: 2,
+  },
+  wishlistBadge: {
+    color: "#00d2ff",
+    fontSize: 12,
+    marginTop: 4,
+    fontWeight: "600",
+  },
+  appUserBadge: {
+    color: "#10b981",
+    fontSize: 12,
+    marginTop: 4,
+    fontWeight: "600",
   },
   secondaryButton: {
     backgroundColor: "#1f2a44",

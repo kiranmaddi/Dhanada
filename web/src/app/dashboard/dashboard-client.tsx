@@ -1,6 +1,7 @@
 ﻿"use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase-browser";
 
 type Contact = { id: string; name: string; phone: string | null };
@@ -9,6 +10,35 @@ type MatchCandidate = {
   contact_name: string;
   contact_phone: string | null;
   matched_user_id: string;
+};
+
+type UnifiedContact = {
+  contact_id: string;
+  contact_name: string;
+  contact_phone: string | null;
+  linked_user_id: string | null;
+  user_name?: string;
+  is_linked: boolean;
+};
+
+type SharedWishlistFromContact = {
+  wishlist_id: string;
+  wishlist_name: string;
+  owner_id: string;
+  owner_name: string;
+  permission: string;
+  item_count: number;
+  created_at: string;
+};
+
+type ContactInvitedEvent = {
+  event_id: string;
+  event_name: string;
+  event_date: string;
+  venue: string | null;
+  description: string | null;
+  owner_id: string;
+  owner_name: string;
 };
 
 interface Props {
@@ -41,6 +71,7 @@ export default function DashboardClient({
   initialPhone,
 }: Props) {
   const supabase = createClient();
+  const router = useRouter();
 
   const [phone, setPhone] = useState(initialPhone);
   const [savingPhone, setSavingPhone] = useState(false);
@@ -54,10 +85,20 @@ export default function DashboardClient({
   const [updatingContact, setUpdatingContact] = useState(false);
   const [deletingContact, setDeletingContact] = useState(false);
   const [matchCandidates, setMatchCandidates] = useState<MatchCandidate[]>([]);
-  const [loadingMatches, setLoadingMatches] = useState(false);
   const [connectingContactId, setConnectingContactId] = useState<string | null>(
     null,
   );
+  const [allContacts, setAllContacts] = useState<UnifiedContact[]>([]);
+  const [selectedContactForWishlists, setSelectedContactForWishlists] =
+    useState<UnifiedContact | null>(null);
+  const [sharedWishlistsFromContact, setSharedWishlistsFromContact] = useState<
+    SharedWishlistFromContact[]
+  >([]);
+  const [loadingContactWishlists, setLoadingContactWishlists] = useState(false);
+  const [contactInvitedEvents, setContactInvitedEvents] = useState<
+    ContactInvitedEvent[]
+  >([]);
+  const [loadingContactEvents, setLoadingContactEvents] = useState(false);
 
   const candidateByContactId = useMemo(
     () =>
@@ -82,28 +123,134 @@ export default function DashboardClient({
   };
 
   const fetchContacts = useCallback(async () => {
-    const { data } = await supabase
+    console.log("[WEB_FETCH_CONTACTS] Starting fetch for user:", userId);
+    const { data, error } = await supabase
       .from("contacts")
       .select("id,name,phone")
       .eq("owner_id", userId)
       .order("name");
+
+    if (error) {
+      console.error("[WEB_FETCH_CONTACTS] Error:", error);
+      return;
+    }
+
+    console.log(
+      "[WEB_FETCH_CONTACTS] Found contacts:",
+      data?.length ?? 0,
+      data,
+    );
     setContacts((data ?? []) as Contact[]);
   }, [supabase, userId]);
 
   const fetchMatchCandidates = useCallback(async () => {
-    setLoadingMatches(true);
+    console.log("[WEB_FETCH_MATCH_CANDIDATES] Starting fetch");
     const { data, error } = await supabase.rpc("get_contact_match_candidates", {
       max_rows: 25,
     });
-    setLoadingMatches(false);
 
     if (error) {
+      console.error("[WEB_FETCH_MATCH_CANDIDATES] Error:", error);
       console.warn("Match candidates error", error.message);
       return;
     }
 
+    console.log(
+      "[WEB_FETCH_MATCH_CANDIDATES] Found candidates:",
+      data?.length ?? 0,
+      data,
+    );
     setMatchCandidates((data ?? []) as MatchCandidate[]);
   }, [supabase]);
+
+  const fetchContactsWithWishlists = useCallback(async () => {
+    console.log("[WEB_FETCH_CONTACTS_WITH_WISHLISTS] Starting fetch");
+    const { data, error } = await supabase.rpc("get_contacts_on_app");
+
+    if (error) {
+      console.error("[WEB_FETCH_CONTACTS_WITH_WISHLISTS] Error:", error);
+      console.warn("Contacts error", error.message);
+      return;
+    }
+
+    console.log("[WEB_FETCH_CONTACTS_WITH_WISHLISTS] Raw data received:", data);
+    // Transform to unified contacts format
+    const unified: UnifiedContact[] = (data ?? []).map((contact: any) => ({
+      contact_id: contact.contact_id,
+      contact_name: contact.contact_name,
+      contact_phone: contact.contact_phone,
+      linked_user_id: contact.linked_user_id,
+      user_name: contact.user_name,
+      is_linked: true,
+    }));
+
+    console.log(
+      "[WEB_FETCH_CONTACTS_WITH_WISHLISTS] Unified contacts:",
+      unified.length,
+      unified,
+    );
+    setAllContacts(unified);
+  }, [supabase]);
+
+  const fetchSharedWishlistsFromContact = useCallback(
+    async (contactUserId: string) => {
+      console.log(
+        "[WEB_FETCH_SHARED_WISHLISTS] Starting fetch for contact user:",
+        contactUserId,
+      );
+      setLoadingContactWishlists(true);
+      const { data, error } = await supabase.rpc(
+        "get_shared_wishlists_from_contact",
+        { p_contact_user_id: contactUserId },
+      );
+      setLoadingContactWishlists(false);
+
+      if (error) {
+        console.error("[WEB_FETCH_SHARED_WISHLISTS] Error:", error);
+        console.warn("Shared wishlists from contact error", error.message);
+        alert("Error: Failed to load wishlists");
+        return;
+      }
+
+      console.log(
+        "[WEB_FETCH_SHARED_WISHLISTS] Found wishlists:",
+        data?.length ?? 0,
+        data,
+      );
+      setSharedWishlistsFromContact(
+        (data ?? []) as SharedWishlistFromContact[],
+      );
+    },
+    [supabase],
+  );
+
+  const fetchContactInvitedEvents = useCallback(
+    async (contactId: string) => {
+      console.log(
+        "[WEB_FETCH_CONTACT_EVENTS] Starting fetch for contact:",
+        contactId,
+      );
+      setLoadingContactEvents(true);
+      const { data, error } = await supabase.rpc("get_contact_invited_events", {
+        p_contact_user_id: contactId,
+      });
+      setLoadingContactEvents(false);
+
+      if (error) {
+        console.error("[WEB_FETCH_CONTACT_EVENTS] Error:", error);
+        console.warn("Contact invited events error", error.message);
+        return;
+      }
+
+      console.log(
+        "[WEB_FETCH_CONTACT_EVENTS] Found events:",
+        data?.length ?? 0,
+        data,
+      );
+      setContactInvitedEvents((data ?? []) as ContactInvitedEvent[]);
+    },
+    [supabase],
+  );
 
   useEffect(() => {
     fetchContacts();
@@ -111,7 +258,8 @@ export default function DashboardClient({
 
   useEffect(() => {
     void fetchMatchCandidates();
-  }, [fetchMatchCandidates]);
+    void fetchContactsWithWishlists();
+  }, [fetchMatchCandidates, fetchContactsWithWishlists]);
 
   useEffect(() => {
     let mounted = true;
@@ -281,6 +429,7 @@ export default function DashboardClient({
     setMatchCandidates((cur) =>
       cur.filter((row) => row.contact_id !== candidate.contact_id),
     );
+    void fetchContactsWithWishlists();
   }
 
   async function onInviteContact(contact: Contact) {
@@ -464,66 +613,183 @@ export default function DashboardClient({
         {contacts.length === 0 ? (
           <p className="empty">No contacts yet.</p>
         ) : (
-          contacts.map((c) => (
-            <div key={c.id} className="list-item row">
-              <div style={{ flex: 1 }}>
-                <div className="list-name">{c.name}</div>
-                <div className="list-meta">{c.phone || "No phone"}</div>
-              </div>
-              {candidateByContactId.has(c.id) && (
-                <button
-                  className="add-btn"
-                  onClick={() =>
-                    void onConnectCandidate(candidateByContactId.get(c.id)!)
+          contacts.map((c) => {
+            // Check if this contact is an app user
+            const appUser = allContacts.find(
+              (ac) =>
+                ac.contact_phone === c.phone || ac.contact_name === c.name,
+            );
+            return (
+              <div
+                key={c.id}
+                className="list-item row"
+                style={{
+                  cursor: appUser ? "pointer" : "default",
+                }}
+                onClick={() => {
+                  if (appUser && appUser.linked_user_id) {
+                    console.log(
+                      "[CONTACT_CLICK] contact_id:",
+                      appUser.contact_id,
+                      "linked_user_id:",
+                      appUser.linked_user_id,
+                    );
+                    setSelectedContactForWishlists(appUser);
+                    void fetchSharedWishlistsFromContact(
+                      appUser.linked_user_id,
+                    );
+                    void fetchContactInvitedEvents(appUser.linked_user_id);
                   }
-                  disabled={connectingContactId === c.id}
-                >
-                  {connectingContactId === c.id ? "Connecting..." : "Connect"}
-                </button>
-              )}
-              {!candidateByContactId.has(c.id) && hasValidPhone(c.phone) && (
+                }}
+              >
+                <div style={{ flex: 1 }}>
+                  <div className="list-name">{c.name}</div>
+                  <div className="list-meta">{c.phone || "No phone"}</div>
+                </div>
+                {appUser ? (
+                  <div
+                    style={{
+                      display: "inline-block",
+                      backgroundColor: "#10b981",
+                      color: "white",
+                      padding: "4px 8px",
+                      borderRadius: "4px",
+                      fontSize: "0.75rem",
+                      fontWeight: 600,
+                    }}
+                  >
+                    App User
+                  </div>
+                ) : candidateByContactId.has(c.id) ? (
+                  <button
+                    className="add-btn"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      void onConnectCandidate(candidateByContactId.get(c.id)!);
+                    }}
+                    disabled={connectingContactId === c.id}
+                  >
+                    {connectingContactId === c.id ? "Connecting..." : "Connect"}
+                  </button>
+                ) : hasValidPhone(c.phone) ? (
+                  <button
+                    className="add-btn"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      void onInviteContact(c);
+                    }}
+                    disabled={connectingContactId === c.id}
+                  >
+                    {connectingContactId === c.id ? "Connecting..." : "Invite"}
+                  </button>
+                ) : null}
                 <button
                   className="add-btn"
-                  onClick={() => void onInviteContact(c)}
-                  disabled={connectingContactId === c.id}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    startEditContact(c);
+                  }}
                 >
-                  {connectingContactId === c.id ? "Connecting..." : "Connect"}
+                  Edit
                 </button>
-              )}
-              <button className="add-btn" onClick={() => startEditContact(c)}>
-                Edit
-              </button>
-            </div>
-          ))
+              </div>
+            );
+          })
         )}
       </div>
 
-      <div className="card">
-        <div className="card-title">People You May Know on Dhanada</div>
-        {loadingMatches ? (
-          <p className="empty">Finding matches...</p>
-        ) : matchCandidates.length === 0 ? (
-          <p className="empty">No match suggestions right now.</p>
-        ) : (
-          matchCandidates.map((m) => (
-            <div key={m.contact_id} className="list-item row">
-              <div style={{ flex: 1 }}>
-                <div className="list-name">{m.contact_name}</div>
-                <div className="list-meta">{m.contact_phone || "No phone"}</div>
-              </div>
-              <button
-                className="add-btn"
-                onClick={() => void onConnectCandidate(m)}
-                disabled={connectingContactId === m.contact_id}
-              >
-                {connectingContactId === m.contact_id
-                  ? "Connecting..."
-                  : "Connect"}
-              </button>
+      {selectedContactForWishlists && (
+        <div className="card">
+          <div
+            style={{ display: "flex", alignItems: "center", marginBottom: 16 }}
+          >
+            <button
+              className="btn-secondary"
+              onClick={() => setSelectedContactForWishlists(null)}
+              style={{ marginRight: 8 }}
+            >
+              ← Back
+            </button>
+            <div className="card-title" style={{ marginBottom: 0, flex: 1 }}>
+              {selectedContactForWishlists.contact_name}
             </div>
-          ))
-        )}
-      </div>
+          </div>
+
+          {/* Wishlists Section */}
+          <div style={{ marginBottom: 20 }}>
+            <h3
+              style={{
+                color: "#9aa5c5",
+                fontSize: "0.8125rem",
+                marginBottom: 8,
+                fontWeight: 600,
+                textTransform: "uppercase",
+                letterSpacing: "0.5px",
+              }}
+            >
+              Shared Wishlists
+            </h3>
+            {loadingContactWishlists ? (
+              <p className="empty">Loading wishlists...</p>
+            ) : sharedWishlistsFromContact.length === 0 ? (
+              <p className="empty">No wishlists shared by this contact.</p>
+            ) : (
+              sharedWishlistsFromContact.map((w) => (
+                <div
+                  key={w.wishlist_id}
+                  className="list-item"
+                  style={{ cursor: "pointer" }}
+                  onClick={() =>
+                    router.push(
+                      `/dashboard/wishlist/${w.wishlist_id}?contactId=${selectedContactForWishlists?.contact_id}&ownerName=${encodeURIComponent(w.owner_name)}&ownerId=${w.owner_id}`,
+                    )
+                  }
+                >
+                  <div>
+                    <div className="list-name">{w.wishlist_name}</div>
+                    <div className="list-meta">
+                      {w.item_count} {w.item_count === 1 ? "item" : "items"}
+                    </div>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+
+          {/* Events Section */}
+          <div>
+            <h3
+              style={{
+                color: "#9aa5c5",
+                fontSize: "0.8125rem",
+                marginBottom: 8,
+                fontWeight: 600,
+                textTransform: "uppercase",
+                letterSpacing: "0.5px",
+              }}
+            >
+              Invited Events
+            </h3>
+            {loadingContactEvents ? (
+              <p className="empty">Loading events...</p>
+            ) : contactInvitedEvents.length === 0 ? (
+              <p className="empty">Not invited to any events.</p>
+            ) : (
+              contactInvitedEvents.map((e) => (
+                <div key={e.event_id} className="list-item">
+                  <div>
+                    <div className="list-name">{e.event_name}</div>
+                    <div className="list-meta">
+                      📅 {new Date(e.event_date).toLocaleDateString()}
+                      {e.venue && ` • 📍 ${e.venue}`}
+                    </div>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+      )}
     </>
   );
 }
