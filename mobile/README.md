@@ -25,6 +25,12 @@ In the output, you'll find options to open the app in a
 
 You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
 
+## Supabase project is inactive
+
+If the app cannot load Supabase data and the project dashboard reports that the project is paused or inactive, restore or resume it from the [Supabase dashboard](https://supabase.com/dashboard/project/pcayocyclakggplcaexh). The mobile app uses this project as its fallback configuration. `EXPO_PUBLIC_SUPABASE_URL`, when set, overrides that fallback, so confirm it points to the intended project.
+
+After the project is active, restart the Expo development server and reload the app. Do not put Supabase keys in this README.
+
 ## Get a fresh project
 
 When you're ready, run:
